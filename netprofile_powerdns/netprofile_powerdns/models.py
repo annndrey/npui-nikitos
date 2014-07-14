@@ -29,8 +29,6 @@ __all__ = [
 'PDNSRecord',
 'PDNSSupermaster',
 'PDNSTsigkey',
-#'PDNSDomainType',
-#'PDNSRecordType'
 ]
 
 #we need a simple many-to-many table with 3 fields - id, domainname, access_entity.id 
@@ -85,33 +83,6 @@ from pyramid.i18n import (
 )
 
 _ = TranslationStringFactory('netprofile_powerdns')
-
-
-class PDNSRecordType(DeclEnum):
-	"""
-	PDNS Domain Record Types
-	"""
-	SOA = 'SOA', _('Start of Authority Record'), 10
-	NS = 'NS', _('Name Server Record'), 20
-	MX = 'MX', _('Mail Exchange Record'), 30
-	A = 'A', _('Address Record'), 40
-	AAAA = 'AAAA', _('IPv6 Address Record'), 50
-	CNAME = 'CNAME', _('Canonical Name Record'), 60
-	TXT = 'TXT', _('Text Record'), 70
-	PTR = 'PTR', _('Pointer Record'), 80
-	HINFO = 'HINFO', _('Hardware Info Record'), 90
-	SRV = 'SRV', _('Service Locator'), 100 
-	NAPTR = 'NAPTR', _('Naming Authority Pointer'), 110
-
-
-class PDNSDomainType(DeclEnum):
-	"""
-	PDNS Domain Types
-	"""
-	native = 'NATIVE', _('NATIVE'), 10
-	master = 'MASTER', _('MASTER'), 20  
-	slave = 'SLAVE', _('SLAVE'), 30  
-	superslave = 'SUPERSLAVE', _('SUPERSLAVE'), 40
 
 
 class UserDomain(Base):
