@@ -35,8 +35,6 @@
 	    <a data-toggle="modal" data-target="#formModalDomainRecord${d.id}"><span class="glyphicon glyphicon-plus-sign"></span></a>
 	    <a data-toggle='modal' href='#modalEdit${d.id}'><span class="glyphicon glyphicon-pencil"</a> 
 	    <a data-toggle='modal' href='#modalDeleteDomain${d.id}'><span class="glyphicon glyphicon-remove"></a> 
-	    <br>
-    	    (should use popover or collapse from bootstrap for records block) <br>
 	  </div>
 	</div>
 	<div id="collapse${d.id}" class="panel-collapse collapse">
