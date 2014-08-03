@@ -214,7 +214,7 @@ def _gen_menu(menu, req):
 	loc = get_localizer(req)
 	menu.append({
 		'route' : 'pdns.cl.domains',
-		'text'  : loc.translate(_('Domain Names'))
+		'text'  : loc.translate(_('Domains'))
 	}
 )
 

@@ -13,7 +13,12 @@
 
 %if userdomains is None:
   <div class="alert alert-warning">
-    ${loc.translate(_("You have no domains yet. Add some?"))}
+    ${loc.translate(_("You have no domains yet."))} 
+      <button class="btn btn-primary pull-right" data-toggle="modal" data-target="#formModalDomain">
+	<span class="glyphicon glyphicon-plus"></span>
+	${loc.translate(_("Add some?"))}
+      </button>
+
   </div>
 
 % else:
