@@ -424,8 +424,8 @@ class PDNSDomain(Base):
 				'show_in_menu'  : 'modules',
 				'menu_order'    : 30,
 				'default_sort'  : ({ 'property': 'name', 'direction': 'ASC' },),
-				'grid_view'     : ('name', 'dtype'),
-				'easy_search'   : ('name', 'master', 'last_check', 'dtype', 'notified_serial'),
+				'grid_view'     : ('name', 'dtype', 'account'),
+				'easy_search'   : ('name', 'master', 'account','last_check', 'dtype', 'notified_serial'),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
 				'create_wizard' : SimpleWizard(title=_('Add new DNS domain'))
 			}

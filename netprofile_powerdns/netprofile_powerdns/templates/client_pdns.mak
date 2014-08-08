@@ -13,7 +13,12 @@
 
 %if userdomains is None:
   <div class="alert alert-warning">
-    ${loc.translate(_("You have no domains yet. Add some?"))}
+    ${loc.translate(_("You have no domains yet."))} 
+      <button class="btn btn-primary pull-right" data-toggle="modal" data-target="#formModalDomain">
+	<span class="glyphicon glyphicon-plus"></span>
+	${loc.translate(_("Add some?"))}
+      </button>
+
   </div>
 
 % else:
@@ -30,8 +35,6 @@
 	    <a data-toggle="modal" data-target="#formModalDomainRecord${d.id}"><span class="glyphicon glyphicon-plus-sign"></span></a>
 	    <a data-toggle='modal' href='#modalEdit${d.id}'><span class="glyphicon glyphicon-pencil"</a> 
 	    <a data-toggle='modal' href='#modalDeleteDomain${d.id}'><span class="glyphicon glyphicon-remove"></a> 
-	    <br>
-    	    (should use popover or collapse from bootstrap for records block) <br>
 	  </div>
 	</div>
 	<div id="collapse${d.id}" class="panel-collapse collapse">
@@ -41,7 +44,7 @@
 	    % if d.id in [r.domain_id for r in domainrecords]:
 	      % for r in domainrecords:
       		% if r.domain_id == d.id:
-		  Here's the record:  ${r} 
+		  ${r} 
 		  <a data-toggle='modal' href='#modalRecordEdit${r.id}'><span class="glyphicon glyphicon-pencil"></a> 
 		  <a data-toggle='modal' href='#modalDeleteRecord${r.id}'><span class="glyphicon glyphicon-remove"></a> 
 		  <br>

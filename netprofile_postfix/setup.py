@@ -8,15 +8,13 @@ CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
 
 requires = [
 	'setuptools',
-	'pyproxmox',
-	'requests',
 	'netprofile >= 0.3',
 ]
 
 setup(
-	name='netprofile_proxmox',
+	name='netprofile_postfix',
 	version='0.3',
-	description='NetProfile Client UI - Proxmox Module',
+	description='NetProfile Administrative UI - Postfix Module',
 	license='GNU Affero General Public License v3 or later (AGPLv3+)',
 	long_description=README + '\n\n' +  CHANGES,
 	classifiers=[
@@ -46,11 +44,11 @@ setup(
 	packages=find_packages(),
 	include_package_data=True,
 	zip_safe=False,
-	test_suite='netprofile_proxmox',
+	test_suite='netprofile_postfix',
 	install_requires=requires,
 	entry_points="""\
 		[netprofile.modules]
-		proxmox = netprofile_proxmox:Module
+		postfix = netprofile_postfix:Module
 	""",
 	message_extractors={'.' : [
 		('**.py', 'python', None),
