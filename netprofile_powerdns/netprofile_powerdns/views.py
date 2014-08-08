@@ -55,14 +55,8 @@ _ = TranslationStringFactory('netprofile_powerdns')
 	route_name='pdns.cl.delete',
 	request_method='POST',
 	permission='USAGE',
-	#renderer='netprofile_powerdns:templates/client_pdns.mak'
 )
 def delete_record(request):
-	#if d in GET, delete domain
-	#if r in GET, delete record
-	#before delete check if this record exists and belongs to auth_user
-	#delete and redirect to main module page 
-	#use _query to add aditional params when redirecting 
 	loc = get_localizer(request)
 	cfg = request.registry.settings
 	sess = DBSession()
@@ -80,13 +74,13 @@ def delete_record(request):
 		domainid = request.POST.get('domainid', None)
 		recid = request.POST.get('recordid', None)
 		if domainid and not recid:
-			domain = sess.query(PDNSDomain).filter_by(id=int(request.POST.get('domainid', None))).first()
+			domain = sess.query(PDNSDomain).filter_by(id=int(domainid)).first()
 			if domain.id in user_domains:
 				sess.delete(domain)
 				sess.flush()
 
 		elif recid:
-			record = sess.query(PDNSRecord).filter_by(id=int(request.POST.get('recordid', None))).first()
+			record = sess.query(PDNSRecord).filter_by(id=int(recid)).first()
 			if record.domain_id in user_domains:
 				sess.delete(record)			
 				sess.flush()
