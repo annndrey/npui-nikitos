@@ -72,16 +72,6 @@ class Module(ModuleBase):
 	def get_models(self):
 	from netprofile_powerdns import models 
 		return (
-<<<<<<< HEAD
-			UserDomain,
-			PDNSComment,
-			PDNSCryptokey,
-			PDNSDomainMetadata,
-			PDNSDomain,
-			PDNSRecord,
-			PDNSSupermaster,
-			PDNSTsigkey,
-=======
 			models.UserDomain,
 			models.PDNSComment,
 			models.PDNSCryptokey,
@@ -92,7 +82,6 @@ class Module(ModuleBase):
 			models.PDNSTsigkey,
 			#models.PDNSDomainType,
 			#models.PDNSRecordType
->>>>>>> upstream/master
 		)
 
 	def get_css(self, request):
