@@ -29,7 +29,10 @@ from __future__ import (
 
 from netprofile.common.modules import ModuleBase
 
+<<<<<<< HEAD
 from .models import *
+=======
+>>>>>>> upstream/master
 
 from pyramid.i18n import TranslationStringFactory
 
@@ -70,6 +73,7 @@ class Module(ModuleBase):
 	def get_deps(cls):
 		return ('domains',)
 
+<<<<<<< HEAD
 	def get_models(self):
 		return (
 			PostfixAdmin,
@@ -79,6 +83,19 @@ class Module(ModuleBase):
 			PostfixVacation,
 			PostfixAlias,
 			PostfixMailbox,
+=======
+	@classmethod
+	def get_models(self):
+		from netprofile_postfix import models
+		return (
+			models.PostfixAdmin,
+			models.PostfixDomain,
+			models.PostfixDomainAdmins,
+			models.PostfixLog,
+			models.PostfixVacation,
+			models.PostfixAlias,
+			models.PostfixMailbox,
+>>>>>>> upstream/master
 		)
 
 	def get_css(self, request):

@@ -28,14 +28,18 @@ from __future__ import (
 )
 
 import sys
-import cdecimal
+
+try:
+	import cdecimal
+	sys.modules['decimal'] = cdecimal
+except ImportError:
+	pass
 
 PY3 = True
 if sys.version < '3':
 	PY3 = False
 	reload(sys)
 	sys.setdefaultencoding('utf-8')
-sys.modules['decimal'] = cdecimal
 
 from babel import Locale
 from pyramid.config import Configurator
@@ -102,10 +106,7 @@ class VHostPredicate(object):
 			return (self.current is None)
 		return self.needed == self.current
 
-def main(global_config, **settings):
-	"""
-	Pyramid WSGI application for most of NetProfile vhosts.
-	"""
+def setup_config(settings):
 	global inst_id
 
 	settings['netprofile.debug'] = asbool(settings.get('netprofile.debug'))
@@ -115,11 +116,17 @@ def main(global_config, **settings):
 	DBSession.configure(bind=engine)
 	cache.cache = cache.configure_cache(settings)
 
-	config = Configurator(
+	return Configurator(
 		settings=settings,
 		root_factory=RootFactory,
 		locale_negotiator=locale_neg
 	)
+
+def main(global_config, **settings):
+	"""
+	Pyramid WSGI application for most of NetProfile vhosts.
+	"""
+	config = setup_config(settings)
 
 	config.add_subscriber(
 		'netprofile.common.subscribers.add_renderer_globals',

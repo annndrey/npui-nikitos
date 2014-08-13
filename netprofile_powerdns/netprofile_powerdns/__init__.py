@@ -29,7 +29,6 @@ from __future__ import (
 
 from netprofile.common.modules import ModuleBase
 
-from .models import *
 
 from pyramid.i18n import TranslationStringFactory
 
@@ -69,8 +68,11 @@ class Module(ModuleBase):
 	def get_deps(cls):
 		return ('entities', 'domains')
 
+	@classmethod
 	def get_models(self):
+	from netprofile_powerdns import models 
 		return (
+<<<<<<< HEAD
 			UserDomain,
 			PDNSComment,
 			PDNSCryptokey,
@@ -79,6 +81,18 @@ class Module(ModuleBase):
 			PDNSRecord,
 			PDNSSupermaster,
 			PDNSTsigkey,
+=======
+			models.UserDomain,
+			models.PDNSComment,
+			models.PDNSCryptokey,
+			models.PDNSDomainMetadata,
+			models.PDNSDomain,
+			models.PDNSRecord,
+			models.PDNSSupermaster,
+			models.PDNSTsigkey,
+			#models.PDNSDomainType,
+			#models.PDNSRecordType
+>>>>>>> upstream/master
 		)
 
 	def get_css(self, request):
