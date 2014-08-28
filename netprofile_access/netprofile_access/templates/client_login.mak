@@ -3,6 +3,16 @@
 <%block name="title">${_('Log In')}</%block>
 <%block name="head">\
 	<link rel="stylesheet" href="${req.static_url('netprofile_access:static/css/login.css')}" type="text/css" />
+
+<script type="text/javascript">
+$(document).ready(function(){
+   $("#registersocial").popover({
+     placement : 'bottom',
+     html : 'true'
+    });
+});
+</script>
+
 </%block>
 
 <div class="container">
@@ -42,7 +52,15 @@
 % if can_recover:
 		<a href="${req.route_url('access.cl.restorepass')}" id="restorepass" class="btn btn-info pull-right" title="${_('Recover lost password via e-mail')}" tabindex="6">${_('Lost Password?')}</a>
 % endif
+% if can_usesocial:
+                <a href="#" id='registersocial' class="btn btn-default" data-toggle="popover" title="${_('Login with...')}" data-content='
+		   % for lp in login_providers.keys():
+		   <span><a href="${req.route_url('access.cl.oauthwrapper')}?prov=${lp.lower()}"><img src="${req.static_url('netprofile_access:static/img/loginproviders/%s.png' % lp)}" title="${lp.capitalize()}"></a><span>
+		   % endfor 
+		  '>${_('Login with...')}</a>
+% endif
 	</div>
 </form>
+
 </div>
 
