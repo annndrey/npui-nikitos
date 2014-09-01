@@ -791,6 +791,7 @@ def client_restorepass(request):
 		'comb_js'        : comb_js,
 		'change_pass'    : change_pass,
 		'must_recaptcha' : must_recaptcha,
+		'maillogin'      : maillogin,
 		'errors'         : {err: loc.translate(errors[err]) for err in errors}
 	}
 	if must_recaptcha:
