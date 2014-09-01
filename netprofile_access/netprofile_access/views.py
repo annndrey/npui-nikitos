@@ -115,7 +115,7 @@ def client_forbidden(request):
 	if not authenticated_userid(request):
 		request.session.flash({
 			'class' : 'warning',
-			'text'	: loc.translate(_('You need to log in to access this page'))
+			'text'  : loc.translate(_('You need to log in to access this page'))
 		})
 		return HTTPSeeOther(location=request.route_url('access.cl.login'))
 	request.response.status_code = 403
@@ -156,7 +156,7 @@ def client_chpass(request):
 			})
 			return HTTPSeeOther(location=request.route_url('access.cl.home'))
 	tpldef = {
-		'errors'	  : {err: loc.translate(errors[err]) for err in errors},
+		'errors'      : {err: loc.translate(errors[err]) for err in errors},
 		'min_pwd_len' : min_pwd_len
 	}
 	request.run_hook('access.cl.tpldef', tpldef, request)
@@ -198,8 +198,8 @@ def client_upload(request):
 		signal = request.run_hook('access.cl.upload', obj, mode, request, sess, tpldef)
 		if True not in signal:
 			tpldef.append({
-				'name'	: obj.filename,
-				'size'	: obj.size,
+				'name'  : obj.filename,
+				'size'  : obj.size,
 				'error' : _('Error uploading file')
 			})
 			sess.delete(obj)
@@ -255,7 +255,6 @@ def client_login(request):
 	maillogin = asbool(cfg.get('netprofile.client.email_as_username', False))
 	can_use_socialnetworks = asbool(cfg.get('netprofile.client.registration.social', False))
 
-	#>>>>> should be a dict with links to respective auth links
 	login_providers = {'facebook':'http://facebook.com',
 					   'google'	 :'http://google.com',
 					   'twitter' :'http://twitter.com' 
@@ -277,14 +276,14 @@ def client_login(request):
 		did_fail = True
 
 	tpldef = {
-		'login'			 : login,
-		'failed'		 : did_fail,
-		'can_reg'		 : can_reg,
-		'can_usesocial'	 : can_use_socialnetworks,
+		'login'          : login,
+		'failed'         : did_fail,
+		'can_reg'        : can_reg,
+		'can_usesocial'  : can_use_socialnetworks,
 		'login_providers': login_providers,
-		'can_recover'	 : can_recover,
-		'cur_loc'		 : cur_locale,
-		'comb_js'		 : comb_js
+		'can_recover'    : can_recover,
+		'cur_loc'        : cur_locale,
+		'comb_js'        : comb_js
 	}
 	request.run_hook('access.cl.tpldef.login', tpldef, request)
 	return tpldef
@@ -340,8 +339,7 @@ def client_oauth_facebook(request):
 
 	redirect_uri = request.route_url('access.cl.oauthfacebook')
 	if fbauthcode is not False:
-		fbsession = facebook.get_auth_session(data={'code': fbauthcode,
-													'redirect_uri': redirect_uri})
+		fbsession = facebook.get_auth_session(data={'code': fbauthcode,	'redirect_uri': redirect_uri})
 		res_json = fbsession.get('me').json()
 		reg_params['email'] = res_json['email']
 		reg_params['username'] = res_json['name'].replace(' ','').lower()
@@ -470,7 +468,7 @@ def client_register(request):
 			l = len(login)
 			if (l == 0) or (l > 254):
 				errors['user'] = _('Invalid field length')
-			elif not maillogin and _re_login.match(login):
+			elif not maillogin and not _re_login.match(login):
 				errors['user'] = _('Invalid character used in username')
 			l = len(passwd)
 			if l < min_pwd_len:
@@ -554,9 +552,9 @@ def client_register(request):
 				tpldef = {
 					'cur_loc' : cur_locale,
 					'entity'  : ent,
-					'stash'	  : stash,
+					'stash'   : stash,
 					'access'  : acc,
-					'link'	  : link
+					'link'    : link
 				}
 				request.run_hook('access.cl.tpldef.register.mail', tpldef, request)
 				msg_text = Attachment(
@@ -584,13 +582,13 @@ def client_register(request):
 					mailer.send(msg)
 			return HTTPSeeOther(location=request.route_url('access.cl.regsent'))
 	tpldef = {
-		'cur_loc'		 : cur_locale,
-		'comb_js'		 : comb_js,
-		'must_verify'	 : must_verify,
+		'cur_loc'        : cur_locale,
+		'comb_js'        : comb_js,
+		'must_verify'    : must_verify,
 		'must_recaptcha' : must_recaptcha,
-		'min_pwd_len'	 : min_pwd_len,
+		'min_pwd_len'    : min_pwd_len,
 		'maillogin'      : maillogin,
-		'errors'		 : {err: loc.translate(errors[err]) for err in errors}
+		'errors'         : {err: loc.translate(errors[err]) for err in errors}
 	}
 	if must_recaptcha:
 		tpldef['rc_public'] = rc_public
@@ -634,9 +632,9 @@ def client_regsent(request):
 	if not can_reg:
 		return HTTPSeeOther(location=request.route_url('access.cl.login'))
 	tpldef = {
-		'cur_loc'		 : cur_locale,
-		'comb_js'		 : comb_js,
-		'must_verify'	 : must_verify
+		'cur_loc'        : cur_locale,
+		'comb_js'        : comb_js,
+		'must_verify'    : must_verify
 	}
 	request.run_hook('access.cl.tpldef.regsent', tpldef, request)
 	return tpldef
@@ -670,9 +668,9 @@ def client_activate(request):
 				did_fail = False
 				break
 	tpldef = {
-		'failed'		 : did_fail,
-		'comb_js'		 : comb_js,
-		'cur_loc'		 : cur_locale
+		'failed'         : did_fail,
+		'comb_js'        : comb_js,
+		'cur_loc'        : cur_locale
 	}
 	request.run_hook('access.cl.tpldef.activate', tpldef, request)
 	return tpldef
@@ -755,10 +753,10 @@ def client_restorepass(request):
 
 					mailer = get_mailer(request)
 					tpldef = {
-						'cur_loc'	  : cur_locale,
-						'entity'	  : ent,
-						'email'		  : ent_email,
-						'access'	  : acc,
+						'cur_loc'     : cur_locale,
+						'entity'      : ent,
+						'email'       : ent_email,
+						'access'      : acc,
 						'change_pass' : change_pass
 					}
 					request.run_hook('access.cl.tpldef.password_recovery.mail', tpldef, request)
@@ -789,11 +787,11 @@ def client_restorepass(request):
 			else:
 				errors['csrf'] = _('Username and/or e-mail are unknown to us')
 	tpldef = {
-		'cur_loc'		 : cur_locale,
-		'comb_js'		 : comb_js,
-		'change_pass'	 : change_pass,
+		'cur_loc'        : cur_locale,
+		'comb_js'        : comb_js,
+		'change_pass'    : change_pass,
 		'must_recaptcha' : must_recaptcha,
-		'errors'		 : {err: loc.translate(errors[err]) for err in errors}
+		'errors'         : {err: loc.translate(errors[err]) for err in errors}
 	}
 	if must_recaptcha:
 		tpldef['rc_public'] = rc_public
@@ -812,8 +810,8 @@ def client_restoresent(request):
 		return HTTPSeeOther(location=request.route_url('access.cl.login'))
 	change_pass = asbool(cfg.get('netprofile.client.password_recovery.change_password', True))
 	tpldef = {
-		'cur_loc'	  : cur_locale,
-		'comb_js'	  : comb_js,
+		'cur_loc'     : cur_locale,
+		'comb_js'     : comb_js,
 		'change_pass' : change_pass
 	}
 	request.run_hook('access.cl.tpldef.restoresent', tpldef, request)
@@ -852,17 +850,17 @@ def _cl_tpldef(tpldef, req):
 	loc = get_localizer(req)
 	menu = [{
 		'route' : 'access.cl.home',
-		'text'	: _('Portal')
+		'text'  : _('Portal')
 	}]
 	if 'trans' in tpldef:
 		tpldef['trans'] = {txt: loc.translate(txt) for txt in tpldef['trans']}
 	req.run_hook('access.cl.menu', menu, req)
 	tpldef.update({
-		'menu'	  : menu,
+		'menu'    : menu,
 		'cur_loc' : cur_locale,
 		'comb_js' : comb_js,
-		'loc'	  : loc,
-		'i18n'	  : Locale(cur_locale)
+		'loc'     : loc,
+		'i18n'    : Locale(cur_locale)
 	})
 
 @view_config(
@@ -916,31 +914,31 @@ def _tpldef_list_accounts(tpldef, req):
 def _dpane_aent_mods(tabs, model, req):
 	loc = get_localizer(req)
 	tabs.extend(({
-		'title'				: loc.translate(_('Rate Modifiers')),
-		'iconCls'			: 'ico-mod-ratemodifiertype',
-		'xtype'				: 'grid_access_PerUserRateModifier',
-		'stateId'			: None,
-		'stateful'			: False,
-		'hideColumns'		: ('entity',),
-		'extraParamProp'	: 'entityid',
+		'title'             : loc.translate(_('Rate Modifiers')),
+		'iconCls'           : 'ico-mod-ratemodifiertype',
+		'xtype'             : 'grid_access_PerUserRateModifier',
+		'stateId'           : None,
+		'stateful'          : False,
+		'hideColumns'       : ('entity',),
+		'extraParamProp'    : 'entityid',
 		'createControllers' : 'NetProfile.core.controller.RelatedWizard'
 	}, {
-		'title'				: loc.translate(_('Access Blocks')),
-		'iconCls'			: 'ico-mod-accessblock',
-		'xtype'				: 'grid_access_AccessBlock',
-		'stateId'			: None,
-		'stateful'			: False,
-		'hideColumns'		: ('entity',),
-		'extraParamProp'	: 'entityid',
+		'title'             : loc.translate(_('Access Blocks')),
+		'iconCls'           : 'ico-mod-accessblock',
+		'xtype'             : 'grid_access_AccessBlock',
+		'stateId'           : None,
+		'stateful'          : False,
+		'hideColumns'       : ('entity',),
+		'extraParamProp'    : 'entityid',
 		'createControllers' : 'NetProfile.core.controller.RelatedWizard'
 	}, {
-		'title'				: loc.translate(_('Links')),
-		'iconCls'			: 'ico-mod-accessentitylink',
-		'xtype'				: 'grid_access_AccessEntityLink',
-		'stateId'			: None,
-		'stateful'			: False,
-		'hideColumns'		: ('entity',),
-		'extraParamProp'	: 'entityid',
+		'title'             : loc.translate(_('Links')),
+		'iconCls'           : 'ico-mod-accessentitylink',
+		'xtype'             : 'grid_access_AccessEntityLink',
+		'stateId'           : None,
+		'stateful'          : False,
+		'hideColumns'       : ('entity',),
+		'extraParamProp'    : 'entityid',
 		'createControllers' : 'NetProfile.core.controller.RelatedWizard'
 	}))
 
