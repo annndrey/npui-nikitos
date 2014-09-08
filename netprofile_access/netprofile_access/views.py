@@ -29,7 +29,8 @@ from __future__ import (
 
 import datetime, os, random, re, string, hashlib
 
-from rauth import OAuth2Service
+from rauth import OAuth2Service, OAuth1Service
+from rauth.utils import parse_utf8_qsl
 
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -303,10 +304,90 @@ def client_oauth_wrapper(request):
 	auth_provider = request.GET.get('prov', None)
 	if auth_provider == 'facebook':
 		redirect_uri = request.route_url('access.cl.oauthfacebook')
+	elif auth_provider == 'twitter':
+		redirect_uri = request.route_url('access.cl.oauthtwitter')
 	else:
 		redirect_uri = request.route_url('access.cl.home')
 	return HTTPSeeOther(redirect_uri)
 
+@view_config(route_name='access.cl.oauthtwitter', request_method='GET')
+def client_oauth_twitter(request):
+	if authenticated_userid(request):
+		return HTTPSeeOther(location=request.route_url('access.cl.home'))
+
+	cfg = request.registry.settings
+	loc = get_localizer(request)
+	req_session = request.session
+	redirect_uri = request.route_url('access.cl.oauthtwitter')
+	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
+	auth_provider = 'twitter'
+	reg_params = {
+		'email':None,
+		'username':None,
+		'password':None,
+		'givenname':None,
+		'familyname':None,
+		}
+
+	TWITTER_APP_ID = cfg.get('netprofile.client.TWITTER_APP_ID', False)
+	TWITTER_APP_SECRET = cfg.get('netprofile.client.TWITTER_APP_SECRET', False)
+
+	twitter = OAuth1Service(
+		consumer_key=TWITTER_APP_ID,
+		consumer_secret=TWITTER_APP_SECRET,
+		name='twitter',
+		authorize_url='https://api.twitter.com/oauth/authorize',
+		access_token_url='https://api.twitter.com/oauth/access_token',
+		request_token_url='https://api.twitter.com/oauth/request_token',
+		base_url='https://api.twitter.com/1.1/')
+
+
+
+	if TWITTER_APP_ID and TWITTER_APP_SECRET:
+		auth_token = request.GET.get('oauth_token', False)
+		auth_verifier = request.GET.get('oauth_verifier', False)
+
+		if not auth_token and not auth_verifier:
+			params = {
+				'oauth_callback': redirect_uri,
+				}
+
+			authorize_url = twitter.get_raw_request_token(params=params)
+
+			data = parse_utf8_qsl(authorize_url.content)
+
+			# should pass callback_url
+			# and get something like http://netprofile.ru/?oauth_token=1jMq4YD5cKEgRrOjoRae3xdfHJaoQRPf&oauth_verifier=bpOPZ1CYVUGtNs8nTFihwBv6KWhJzV1C
+			# http://stackoverflow.com/questions/17512572/rauth-flask-how-to-login-via-twitter
+		    #it works
+			print(data)
+			req_session['twitter_oauth'] = (data['oauth_token'], data['oauth_token_secret'])
+			return HTTPSeeOther(twitter.get_authorize_url(data['oauth_token'], **params))
+		else:
+			request_token, request_token_secret = req_session.pop('twitter_oauth')
+			creds = {
+				'request_token': request_token,
+				'request_token_secret': request_token_secret
+				}
+			params = {'oauth_verifier': auth_verifier}
+			sess = twitter.get_auth_session(params=params, **creds)
+			res_json = sess.get('account/verify_credentials.json',
+							  params={'format':'json'}).json()
+			print(res_json)
+			#twitter does not provide email with rest api
+			reg_params['email'] = res_json['email']
+			reg_params['username'] = res_json['screen_name'].replace(' ','').lower()
+			reg_params['givenname'] = res_json['name'].split()[0]
+			reg_params['familyname'] = res_json['name'].split()[-1]
+			passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + res_json['id']).encode('utf8')).hexdigest()
+			reg_params['password'] = passwordhash[::3][:8]
+
+			headers = client_oauth_register(request, reg_params)
+
+			if headers:
+				return HTTPSeeOther(location=request.route_url('access.cl.home'), headers=headers)
+
+	
 @view_config(route_name='access.cl.oauthfacebook', request_method='GET')
 def client_oauth_facebook(request):
 	if authenticated_userid(request):
