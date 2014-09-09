@@ -261,7 +261,6 @@ def client_login(request):
 					   'twitter' :'http://twitter.com' 
 					   }
 
-
 	if 'submit' in request.POST:
 		csrf = request.POST.get('csrf', '')
 		login = request.POST.get('user', '')
@@ -302,12 +301,20 @@ def client_login(request):
 @view_config(route_name='access.cl.oauthwrapper', request_method='GET')
 def client_oauth_wrapper(request):
 	auth_provider = request.GET.get('prov', None)
+	redirect_uri = request.route_url('access.cl.home')
+
 	if auth_provider == 'facebook':
 		redirect_uri = request.route_url('access.cl.oauthfacebook')
 	elif auth_provider == 'twitter':
-		redirect_uri = request.route_url('access.cl.oauthtwitter')
-	else:
-		redirect_uri = request.route_url('access.cl.home')
+		csrf = request.GET.get('csrf', None)
+		email = request.GET.get('twitterEmail', None)
+		if email and csrf == request.get_csrf():
+			#request.params['email'] = email
+			#redirect_uri = 
+			return HTTPFound(location=request.route_url('access.cl.oauthtwitter', email=email))
+			#print("@@@@@@@@@@@@@@@")
+			#print(request.params)
+			#print(redirect_uri)
 	return HTTPSeeOther(redirect_uri)
 
 @view_config(route_name='access.cl.oauthtwitter', request_method='GET')
@@ -318,11 +325,17 @@ def client_oauth_twitter(request):
 	cfg = request.registry.settings
 	loc = get_localizer(request)
 	req_session = request.session
-	redirect_uri = request.route_url('access.cl.oauthtwitter')
+
 	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
 	auth_provider = 'twitter'
+
+
+
+	email =  request.matchdict['email']
+	redirect_uri = request.route_url('access.cl.oauthtwitter', email=email)
+
 	reg_params = {
-		'email':None,
+		'email':email,
 		'username':None,
 		'password':None,
 		'givenname':None,
@@ -341,8 +354,6 @@ def client_oauth_twitter(request):
 		request_token_url='https://api.twitter.com/oauth/request_token',
 		base_url='https://api.twitter.com/1.1/')
 
-
-
 	if TWITTER_APP_ID and TWITTER_APP_SECRET:
 		auth_token = request.GET.get('oauth_token', False)
 		auth_verifier = request.GET.get('oauth_verifier', False)
@@ -360,7 +371,7 @@ def client_oauth_twitter(request):
 			# and get something like http://netprofile.ru/?oauth_token=1jMq4YD5cKEgRrOjoRae3xdfHJaoQRPf&oauth_verifier=bpOPZ1CYVUGtNs8nTFihwBv6KWhJzV1C
 			# http://stackoverflow.com/questions/17512572/rauth-flask-how-to-login-via-twitter
 		    #it works
-			print(data)
+
 			req_session['twitter_oauth'] = (data['oauth_token'], data['oauth_token_secret'])
 			return HTTPSeeOther(twitter.get_authorize_url(data['oauth_token'], **params))
 		else:
@@ -374,19 +385,19 @@ def client_oauth_twitter(request):
 			res_json = sess.get('account/verify_credentials.json',
 							  params={'format':'json'}).json()
 			print(res_json)
-			#twitter does not provide email with rest api
-			reg_params['email'] = res_json['email']
+			#twitter does not provide email with rest api, we hawe to ask the user explicitly
 			reg_params['username'] = res_json['screen_name'].replace(' ','').lower()
 			reg_params['givenname'] = res_json['name'].split()[0]
 			reg_params['familyname'] = res_json['name'].split()[-1]
-			passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + res_json['id']).encode('utf8')).hexdigest()
+			passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + str(res_json['id'])).encode('utf8')).hexdigest()
 			reg_params['password'] = passwordhash[::3][:8]
 
 			headers = client_oauth_register(request, reg_params)
-
+			
 			if headers:
 				return HTTPSeeOther(location=request.route_url('access.cl.home'), headers=headers)
 
+	return HTTPSeeOther(location=request.route_url('access.cl.login'))
 	
 @view_config(route_name='access.cl.oauthfacebook', request_method='GET')
 def client_oauth_facebook(request):
@@ -462,7 +473,7 @@ def client_oauth_register(request, regdict):
 	name_family = regdict.get('familyname', '')
 	name_given = regdict.get('givenname', '')
 
-	### !!!!! What if facebook user changes his password in out database?!
+	### !!!!! What if user changes his password in out database?!
 	if login is not None and passwd is not None:
 		q = sess.query(AccessEntity).filter(AccessEntity.nick == login, AccessEntity.access_state != AccessState.block_inactive.value)
 		if q is not None:
