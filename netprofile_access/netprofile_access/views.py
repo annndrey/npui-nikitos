@@ -305,6 +305,8 @@ def client_oauth_wrapper(request):
 
 	if auth_provider == 'facebook':
 		redirect_uri = request.route_url('access.cl.oauthfacebook')
+	elif auth_provider == 'google':
+		redirect_uri = request.route_url('access.cl.oauthgoogle')
 	elif auth_provider == 'twitter':
 		csrf = request.GET.get('csrf', None)
 		email = request.GET.get('twitterEmail', None)
@@ -398,7 +400,16 @@ def client_oauth_twitter(request):
 				return HTTPSeeOther(location=request.route_url('access.cl.home'), headers=headers)
 
 	return HTTPSeeOther(location=request.route_url('access.cl.login'))
-	
+
+@view_config(route_name='access.cl.oauthgoogle', request_method='GET')
+def client_oauth_google(request):
+# PUT CODE HERE
+#For examples see:
+# http://ruseller.com/lessons.php?rub=37&id=1668
+# http://requests-oauthlib.readthedocs.org/en/latest/examples/google.html
+# 
+	return True
+
 @view_config(route_name='access.cl.oauthfacebook', request_method='GET')
 def client_oauth_facebook(request):
 	if authenticated_userid(request):
