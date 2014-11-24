@@ -404,11 +404,6 @@ def client_oauth_twitter(request):
 
 @view_config(route_name='access.cl.oauthgoogle', request_method='GET')
 def client_oauth_google(request):
-# PUT CODE HERE
-#For examples see:
-# http://ruseller.com/lessons.php?rub=37&id=1668
-# http://requests-oauthlib.readthedocs.org/en/latest/examples/google.html
-# https://raw.githubusercontent.com/ejelome/oauth-login-implementation-examples-using-rauth-via-bottle.py/master/oauth2-google.py
 	cfg = request.registry.settings
 	loc = get_localizer(request)
 	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
@@ -446,11 +441,20 @@ def client_oauth_google(request):
 			decoder=lambda b: json.loads(b.decode())
 			)
 		json_path = 'https://www.googleapis.com/oauth2/v1/userinfo'
-		session_json = gsession.get(json_path).json()
-		#session_json = dict((k, unicode(v).encode('utf-8')) for k, v in session_json.iteritems())
-		# it works, now we can register
-		print("##################")
-		print(session_json)
+		res_json = gsession.get(json_path).json()
+		
+		reg_params['email'] = res_json['email']
+		reg_params['username'] = res_json['email'].split("@")[0]
+		reg_params['givenname'] = res_json['given_name']
+		reg_params['familyname'] = res_json['family_name']
+		passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + res_json['id']).encode('utf8')).hexdigest()
+		reg_params['password'] = passwordhash[::3][:8]
+		
+		headers = client_oauth_register(request, reg_params)
+		if headers:
+			return HTTPSeeOther(location=request.route_url('access.cl.home'), headers=headers)
+		else:
+			return HTTPSeeOther(location=request.route_url('access.cl.home'))
 
 	if GOOGLE_APP_ID and GOOGLE_APP_SECRET:
 		params = {
