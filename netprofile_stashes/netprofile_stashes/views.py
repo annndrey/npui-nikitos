@@ -33,6 +33,8 @@ from pyramid.i18n import (
 )
 
 import math
+import json
+import PyPKPass as P
 import datetime as dt
 from dateutil.parser import parse as dparse
 from dateutil.relativedelta import relativedelta
@@ -42,6 +44,7 @@ from pyramid.httpexceptions import (
 	HTTPForbidden,
 	HTTPSeeOther
 )
+from pyramid.response import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -125,6 +128,61 @@ class ClientRootFactory(RootFactory):
 		except ValueError:
 			pass
 		raise KeyError('Invalid URL')
+
+@view_config(
+	route_name='stashes.cl.accounts',
+	name='getpass',
+	permission='USAGE'
+)
+def get_pkpass(request):
+	loc = get_localizer(request)
+	cfg = request.registry.settings
+	sess = sess = DBSession()
+	st = None
+	if not request.user:
+		raise KeyError('Not logged in')
+	try:
+		name = int(request.params.get('stid', None), base=10)
+		ent = request.user.parent
+		sess = DBSession()
+		try:
+			st = sess.query(Stash).filter(
+				Stash.entity == ent,
+				Stash.id == name
+				).one()
+			
+		except NoResultFound:
+			raise KeyError('Invalid stash ID')
+	except ValueError:
+		pass
+
+
+	#get cert paths from config
+	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
+	#for pass generation, see demo in PKPass
+	#after generation return file else return error
+	pkpass = P.PyPKPass.PKPass.PKPass("pass.com.netprofile.test", "123456")
+	pkpass.backgroundColor="rgb(23, 187, 82)"
+	pkpass.teamIdentifier="4NS7N83P83"
+	pkpass.passTypeIdentifier="pass.com.netprofile.test"
+	#add custom fields here
+	#Current Rate, Paid Till, testuser, 
+	#
+	pkpass.addHeaderField("Name", "Netprofile Account", 'My Netprofile Account Details')
+	pkpass.addPrimaryField("username", str(request.user), "Username")
+	pkpass.addPrimaryField("Account Name", st.name, 'Account Name')
+	pkpass.addSecondaryField("Amount", "{0}".format(st.amount), "Amont")
+	pkpass.addSecondaryField("Credit", "{0}".format(st.credit), "Credit")
+	
+	
+	#.addSecondaryField
+	#addAuxiliaryField
+	#addBackField
+	pkpass.sign("/home/annndrey/test/Certificates.p12", "", "/home/annndrey/test/demoPass.pkpass", "/home/annndrey/test/git/PyPKPass/PyPKPass/WWDR.pem")
+	#return pkpass file here
+	resp = FileResponse("/home/annndrey/test/demoPass.pkpass")
+	resp.content_disposition = 'attachment; filename="demoPass.pkpass"'
+	return resp
 
 @view_config(
 	route_name='stashes.cl.accounts',
