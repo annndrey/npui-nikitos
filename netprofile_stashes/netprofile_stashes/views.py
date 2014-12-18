@@ -34,6 +34,7 @@ from pyramid.i18n import (
 
 import math
 import json
+import tempfile
 import PyPKPass as P
 import datetime as dt
 from dateutil.parser import parse as dparse
@@ -132,56 +133,63 @@ class ClientRootFactory(RootFactory):
 @view_config(
 	route_name='stashes.cl.accounts',
 	name='getpass',
-	permission='USAGE'
+	#permission='USAGE'
 )
 def get_pkpass(request):
 	loc = get_localizer(request)
 	cfg = request.registry.settings
-	sess = sess = DBSession()
+	sess = DBSession()
 	st = None
-	if not request.user:
-		raise KeyError('Not logged in')
+	token = None
+	passserial = request.current_route_path().split('/')[-1].split("?")[0]
+	#don't check if user if logged in
+	#instead get pkpass serial and check for the user with this serial.
+	#
+	#if not request.user:
+	#	raise KeyError('Not logged in')
+	
 	try:
-		name = int(request.params.get('stid', None), base=10)
-		ent = request.user.parent
+		token = request.params.get('authtoken', None)
 		sess = DBSession()
-		try:
-			st = sess.query(Stash).filter(
-				Stash.entity == ent,
-				Stash.id == name
-				).one()
+		if token:
+			try:
+				st = sess.query(Stash).filter(
+					Stash.passtoken == token,
+					).one()
 			
-		except NoResultFound:
-			raise KeyError('Invalid stash ID')
+			except NoResultFound:
+				raise KeyError('Invalid stash ID')
+		else:
+			try:
+				st = sess.query(Stash).filter(
+					Stash.passserial == passserial,
+					).one()
+				token = st.passtoken
+			except NoResultFound:
+				raise KeyError('Invalid stash ID')
 	except ValueError:
 		pass
 
-
-	#get cert paths from config
-	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
-	#for pass generation, see demo in PKPass
-	#after generation return file else return error
-	pkpass = P.PyPKPass.PKPass.PKPass("pass.com.netprofile.test", "123456")
+	p12_cert = cfg.get('netprofile.client.pkpass.p12', None)
+	pem_cert = cfg.get('netprofile.client.pkpass.pem', None)
+	teamId = cfg.get('netprofile.client.pkpass.teamId', None)
+	passId = cfg.get('netprofile.client.pkpass.passId', None)
+	passfile = tempfile.NamedTemporaryFile()
+	pkpass = P.PyPKPass.PKPass.PKPass(passId, passserial)
+	pkpass.webServiceURL = request.url.split("?")[0]
+	pkpass.authenticationToken = token
 	pkpass.backgroundColor="rgb(23, 187, 82)"
-	pkpass.teamIdentifier="4NS7N83P83"
-	pkpass.passTypeIdentifier="pass.com.netprofile.test"
-	#add custom fields here
-	#Current Rate, Paid Till, testuser, 
-	#
+	pkpass.teamIdentifier=teamId
+	pkpass.passTypeIdentifier=passId
 	pkpass.addHeaderField("Name", "Netprofile Account", 'My Netprofile Account Details')
-	pkpass.addPrimaryField("username", str(request.user), "Username")
+	pkpass.addPrimaryField("username", st.entity.nick, "Username")
 	pkpass.addPrimaryField("Account Name", st.name, 'Account Name')
 	pkpass.addSecondaryField("Amount", "{0}".format(st.amount), "Amont")
 	pkpass.addSecondaryField("Credit", "{0}".format(st.credit), "Credit")
-	
-	
-	#.addSecondaryField
-	#addAuxiliaryField
-	#addBackField
-	pkpass.sign("/home/annndrey/test/Certificates.p12", "", "/home/annndrey/test/demoPass.pkpass", "/home/annndrey/test/git/PyPKPass/PyPKPass/WWDR.pem")
-	#return pkpass file here
-	resp = FileResponse("/home/annndrey/test/demoPass.pkpass")
-	resp.content_disposition = 'attachment; filename="demoPass.pkpass"'
+	pkpass.sign(p12_cert, "", passfile.name, pem_cert)
+
+	resp = FileResponse(passfile.name)
+	resp.content_disposition = 'attachment; filename="{0}.pkpass"'.format(passId)
 	return resp
 
 @view_config(
@@ -200,6 +208,8 @@ def get_pkpass(request):
 )
 def client_list(ctx, request):
 	loc = get_localizer(request)
+	cfg = request.registry.settings
+	passId = cfg.get('netprofile.client.pkpass.passId', None)
 	tpldef = {
 		'stashes' : None,
 		'sname'   : None
@@ -215,8 +225,10 @@ def client_list(ctx, request):
 		}]
 	else:
 		tpldef['stashes'] = request.user.parent.stashes
+
 	request.run_hook('access.cl.tpldef', tpldef, request)
 	request.run_hook('access.cl.tpldef.accounts.list', tpldef, request)
+	tpldef.update({'pass_id':passId})
 	return tpldef
 
 @view_config(
