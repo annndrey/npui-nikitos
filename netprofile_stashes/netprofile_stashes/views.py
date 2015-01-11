@@ -140,7 +140,6 @@ class ClientRootFactory(RootFactory):
 #update stashes_def set passserial=MD5(CONCAT(stashid, entityid));
 #update stashes_def set passserial=substring(passtoken, 3,9);
 #make a trigger after adding a new stash
-#and check if new version with passes in a separate table works well
 def get_pkpass(request):
 	loc = get_localizer(request)
 	cfg = request.registry.settings
