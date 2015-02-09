@@ -289,16 +289,6 @@ def client_login(request):
 	request.run_hook('access.cl.tpldef.login', tpldef, request)
 	return tpldef
 
-#####
-#for aonther oauth provider:
-#add a option to wrapper
-#add another provider oauth function
-#add respective views to __init.py
-#all oauth provider functions must return the same dict reg_params
-#the returned dict is passed to oauth_create function
-#that takes the dict, checks if there's no such user and 
-#add one if everything is OK
-
 @view_config(route_name='access.cl.oauthwrapper', request_method='GET')
 def client_oauth_wrapper(request):
 	auth_provider = request.GET.get('prov', None)
@@ -312,12 +302,7 @@ def client_oauth_wrapper(request):
 		csrf = request.GET.get('csrf', None)
 		email = request.GET.get('twitterEmail', None)
 		if email and csrf == request.get_csrf():
-			#request.params['email'] = email
-			#redirect_uri = 
 			return HTTPFound(location=request.route_url('access.cl.oauthtwitter', email=email))
-			#print("@@@@@@@@@@@@@@@")
-			#print(request.params)
-			#print(redirect_uri)
 	return HTTPSeeOther(redirect_uri)
 
 @view_config(route_name='access.cl.oauthtwitter', request_method='GET')
