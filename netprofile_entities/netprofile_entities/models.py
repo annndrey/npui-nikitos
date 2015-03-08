@@ -142,14 +142,20 @@ class EntityType(DeclEnum):
 	legal      = 'legal',      _('Legal'),      20
 	structural = 'structural', _('Structural'), 30
 	external   = 'external',   _('External'),   40
-	access     = 'access',     _('Access'),     50
+
 
 def _wizcb_ent_generic_next(wiz, step, act, val, req):
+	
+	print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	print("STEPS")
+	print([(s, s.id) for s in wiz.steps])
+
 	ret = {
 		'do'      : 'goto',
 		'goto'    : 'ent_physical1'
 	}
 	if 'etype' in val:
+		print("ETYPE IN VAL!!")
 		ret.update({
 			'goto'    : 'ent_%s1' % val['etype'],
 			'enable'  : [
@@ -163,6 +169,8 @@ def _wizcb_ent_generic_next(wiz, step, act, val, req):
 				if st.id.startswith('ent_')
 			]
 		})
+	print("RET")
+	print(ret)
 	return ret
 
 def _wizcb_ent_submit(cls):
@@ -350,14 +358,6 @@ class Entity(Base):
 						id='ent_external1', title=_('External entity properties'),
 						on_prev='generic',
 						on_submit=_wizcb_ent_submit('ExternalEntity')
-					),
-					Step(
-						ExternalWizardField('AccessEntity', 'password'),
-						ExternalWizardField('AccessEntity', 'stash'),
-						ExternalWizardField('AccessEntity', 'rate'),
-						id='ent_access1', title=_('Access entity properties'),
-						on_prev='generic',
-						on_submit=_wizcb_ent_submit('AccessEntity')
 					),
 					title=_('Add new entity'), validator='CreateEntity'
 				)

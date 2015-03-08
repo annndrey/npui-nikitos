@@ -97,20 +97,216 @@ from netprofile.db.ddl import (
 	Trigger
 )
 from netprofile.ext.columns import MarkupColumn
-from netprofile.ext.wizards import SimpleWizard, Wizard, Step
+from netprofile.ext.wizards import (
+	SimpleWizard, 
+	Wizard, 
+	Step, 
+	ExternalWizardField
+)
+
+from netprofile.ext.data import (
+	ExtModel,
+	_name_to_class
+)
+from netprofile.common.hooks import register_hook
 from pyramid.i18n import (
 	TranslationStringFactory,
 	get_localizer
 )
 
+from pyramid.threadlocal import get_current_request
+
 from netprofile_entities.models import (
 	Entity,
 	EntityType,
+	_wizcb_ent_generic_next,
+	_wizcb_ent_submit
 )
 
 _ = TranslationStringFactory('netprofile_access')
 
 EntityType.add_symbol('access', ('access', _('Access'), 50))
+
+
+#def _wizcb_ent_generic_next(wiz, step, act, val, req):
+#	ret = {
+#		'do'      : 'goto',
+#		'goto'    : 'ent_access1'
+#		}
+#	if 'etype' in val:
+#		ret.update({
+#				'goto'    : 'ent_%s1' % val['etype'],
+#			'enable'  : [
+#					st.id
+#				for st in wiz.steps
+#				if st.id.startswith('ent_' + val['etype'])
+#				],
+#			'disable' : [
+#					st.id
+#				for st in wiz.steps
+#				if st.id.startswith('ent_')
+#				]
+#			})
+#
+#	return ret
+#
+#def _wizcb_ent_submit(cls):
+#	def _wizcb_submit_hdl(wiz, step, act, val, req):
+#		xcls = cls
+#		if isinstance(xcls, str):
+#			xcls = _name_to_class(xcls)
+#		sess = DBSession()
+#		em = ExtModel(xcls)
+#		obj = xcls()
+#		em.set_values(obj, val, req, True)
+#		sess.add(obj)
+#		return {
+#			'do'     : 'close',
+#			'reload' : True
+#		}
+#	return _wizcb_submit_hdl
+
+@register_hook('np.wizard.cfg.entities.Entity')
+def _modify_wizard(wizard, model, res):
+	#Это срабатывает, когда нажимаем на AddNewEntity
+	#Значит тут мы должны создавать визард для AccessEntity или менять его когда
+	#добавляем новую Entity
+
+	#print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+	#print("Configuring Wizard")
+#	print(model.model.__table_args__)
+#	print("1111111111111111111")
+#	print(dir(model))
+#	print("2222222222222222222")
+#	print(dir(model.create_wizard))
+#	print(model.create_wizard.steps)
+#	print(dir(AccessEntity))
+
+	#НЕ НАДО ДЕЛАТЬ НОВЫЙ ЭКЗЕМПЛЯР КЛАССА!!!!!!
+	#НАДО БРАТЬ СТЕП ИЗ КЛАССА ЭНТИТИ И ВСТАВЛЯТЬ ЕГО, ИНАЧЕ ПОЛУЧАЕТСЯ ДВА ОДИНАКОВЫХ ШАГА,
+	#И СРАБАТЫВАЕТ НЕ ЭТОТ, А ТОТ, КОТОРЫЙ ИЗ КЛАССА
+	print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@22")
+	print(model.__class__, wizard.title)
+	print([s.id for s in wizard.steps])
+	print("")
+	print(model.create_wizard, model.create_wizard.title)
+	print("")
+	print(res)
+	print("")
+
+
+		
+	#надо еще как-то обновить res
+	#вот тут надо добавлять шаги 
+	#accessEntityStep = [step for step in AccessEntity.__wizard__.steps if step.id == 'ent_access1'].pop()
+	#print(accessEntityStep)
+	
+	if not 'ent_access1' in [s.id for s in wizard.steps]:
+		accessEntityStep = Step(
+			ExternalWizardField('AccessEntity', 'password'),
+			ExternalWizardField('AccessEntity', 'stash'),
+			ExternalWizardField('AccessEntity', 'rate'),
+			id='ent_access1', title=_('Access entity properties'),
+			on_prev='generic',
+			on_submit=_wizcb_ent_submit('AccessEntity')
+			)
+
+	#где взять реквест?!
+		#вот так работает.
+		#теперь надо заменить generic step, сделать там state в ExternalWizardField('AccessEntity', 'state')
+		req = get_current_request()
+		scfg = accessEntityStep.get_cfg(model, req)
+		if scfg:
+			scfg['itemId'] = accessEntityStep.id
+			res.append(scfg)
+
+
+	
+		createWizardSteps = list(model.create_wizard.steps)
+		createWizardSteps.append(accessEntityStep)
+		model.create_wizard.steps = tuple(createWizardSteps)
+		wizard.steps = tuple(createWizardSteps)
+	
+
+	#
+	#Hooray! Here we gou the Entities wizard and now we can add steps!!
+	#create new wizard and replace the old one or modify the existent wizard
+	# Yes, we can just add the steps we need!
+
+	#Короче, вначале пока не вызвваем accessentity, новый шаг не добавляется
+	# а если мы зайдем вначале в аксес енитит, а потом ко всем и попробуем создать, то все заработает
+	
+#	Wizard(
+#		Step(
+#			'nick', 'etype', 'parent',
+#			'state', 'flags', 'descr',
+#			id='generic', title=_('Generic entity properties'),
+#			on_next=_wizcb_ent_generic_next
+#			),
+#		Step(
+#			ExternalWizardField('PhysicalEntity', 'contractid'),
+#			ExternalWizardField('PhysicalEntity', 'name_family'),
+#			ExternalWizardField('PhysicalEntity', 'name_given'),
+#			ExternalWizardField('PhysicalEntity', 'name_middle'),
+#			id='ent_physical1', title=_('Physical entity properties'),
+#			on_prev='generic'
+#			),
+#		Step(
+#			ExternalWizardField('PhysicalEntity', 'pass_series'),
+#			ExternalWizardField('PhysicalEntity', 'pass_num'),
+#			ExternalWizardField('PhysicalEntity', 'pass_issuedby'),
+#			ExternalWizardField('PhysicalEntity', 'pass_issuedate'),
+#			ExternalWizardField('PhysicalEntity', 'email'),
+#			ExternalWizardField('PhysicalEntity', 'icq'),
+#			ExternalWizardField('PhysicalEntity', 'homepage'),
+#			ExternalWizardField('PhysicalEntity', 'birthdate'),
+#			id='ent_physical2', title=_('Physical entity properties'),
+#			on_submit=_wizcb_ent_submit('PhysicalEntity')
+#			),
+#		Step(
+#			ExternalWizardField('LegalEntity', 'contractid'),
+#			ExternalWizardField('LegalEntity', 'name'),
+#			ExternalWizardField('LegalEntity', 'homepage'),
+#			id='ent_legal1', title=_('Legal entity properties'),
+#			on_prev='generic'
+#			),
+#		Step(
+#			ExternalWizardField('LegalEntity', 'cp_name_family'),
+#			ExternalWizardField('LegalEntity', 'cp_name_given'),
+#			ExternalWizardField('LegalEntity', 'cp_name_middle'),
+#			ExternalWizardField('LegalEntity', 'cp_title'),
+#			ExternalWizardField('LegalEntity', 'cp_email'),
+#			ExternalWizardField('LegalEntity', 'cp_icq'),
+#			id='ent_legal2', title=_('Legal entity contact person')
+#			),
+#		Step(
+#			ExternalWizardField('LegalEntity', 'address_legal'),
+#			ExternalWizardField('LegalEntity', 'props_inn'),
+#			ExternalWizardField('LegalEntity', 'props_kpp'),
+#			ExternalWizardField('LegalEntity', 'props_bic'),
+#			ExternalWizardField('LegalEntity', 'props_rs'),
+#			ExternalWizardField('LegalEntity', 'props_cs'),
+#			ExternalWizardField('LegalEntity', 'props_bank'),
+#			id='ent_legal3', title=_('Legal entity details'),
+#			on_submit=_wizcb_ent_submit('LegalEntity')
+#			),
+#		Step(
+#						# FIXME?
+#			id='ent_structural1', title=_('Structural entity properties'),
+#			on_prev='generic',
+#			on_submit=_wizcb_ent_submit('StructuralEntity')
+#			),
+#		Step(
+#			ExternalWizardField('ExternalEntity', 'name'),
+#			ExternalWizardField('ExternalEntity', 'address'),
+#			id='ent_external1', title=_('External entity properties'),
+#			on_prev='generic',
+#			on_submit=_wizcb_ent_submit('ExternalEntity')
+#			),
+#		title=_('Add new entity'), validator='CreateEntity'
+#		)
+
+	return model, res
 
 class AccessState(DeclEnum):
 	"""
@@ -137,6 +333,12 @@ class AccessEntity(Entity):
 	DN_ATTR = 'uid'
 
 	__tablename__ = 'entities_access'
+
+	#__wizard__ = 
+
+	#accessEntityStep = [step for step in AccessEntity.__wizard__.steps if step.id == 'ent_access1'].pop()
+	
+
 	__table_args__ = (
 		Comment('Access entities'),
 		Index('entities_access_i_stashid', 'stashid'),
@@ -193,18 +395,22 @@ class AccessEntity(Entity):
 					Step(
 						'nick', 'parent',
 						'state', 'flags', 'descr',
-						id='generic', title=_('Generic entity properties')
-					),
-					Step(
-						'password',
-						'stash', 'rate',
-						id='ent_access1', title=_('Access entity properties')
-					),
-					title=_('Add new access entity')
-				)
+						id='generic', title=_('Generic entity properties'),
+						),
+					Step('password', 'stash', 'rate',
+						 #'password',
+						 #'stash', 'rate',
+						 id='ent_access1', title=_('Access entity properties'),
+						 #on_prev='generic',
+						 #если закомментировано, то сабмитится, но без типа
+						 #если пишем, то не создается ничего
+						 #on_submit=_wizcb_ent_submit('AccessEntity')
+						 ),
+					title=_('Add new access entity'), validator='CreateAccessEntity'
+					)#__wizard__
+				}
 			}
-		}
-	)
+		)
 	__mapper_args__ = {
 		'polymorphic_identity' : EntityType.access
 	}
@@ -345,7 +551,7 @@ class AccessEntity(Entity):
 		}
 	)
 	access_state = Column(
-		'access_code',
+		'state',
 		UInt8(),
 		Comment('Access code'),
 		nullable=False,
