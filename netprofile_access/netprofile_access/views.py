@@ -101,15 +101,11 @@ _ = TranslationStringFactory('netprofile_access')
 _re_login = re.compile(r'^[\w\d._-]+$')
 _re_email = re.compile(r'^[-.\w]+@(?:[\w\d-]{2,}\.)+\w{2,6}$')
 
-
 @register_hook('core.validators.CreateEntity')
 @register_hook('core.validators.CreateAccessEntity')
 def new_entity_validator(ret, values, request):
 	if 'etype' not in values:
 		return
-	#i'm not sure about this place, the key name
-	#will try and see if it works.
-	print('!!!!!!!!!!!!!!!!!!')
 	mod = request.registry.getUtility(IModuleManager).get_module_browser()['access']
 	em = None
 	etype = values['etype']
@@ -118,11 +114,8 @@ def new_entity_validator(ret, values, request):
 	else:
 		return
 	xret = em.validate_fields(values, request)
-	print(xret)
-	print("##############################")
 	if 'errors' in xret:
 		ret['errors'].update(xret['errors'])
-
 
 @view_config(route_name='access.cl.home', renderer='netprofile_access:templates/client_home.mak', permission='USAGE')
 def client_home(request):

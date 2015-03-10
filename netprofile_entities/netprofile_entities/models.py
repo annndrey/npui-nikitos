@@ -145,17 +145,11 @@ class EntityType(DeclEnum):
 
 
 def _wizcb_ent_generic_next(wiz, step, act, val, req):
-	
-	print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-	print("STEPS")
-	print([(s, s.id) for s in wiz.steps])
-
 	ret = {
 		'do'      : 'goto',
 		'goto'    : 'ent_physical1'
 	}
 	if 'etype' in val:
-		print("ETYPE IN VAL!!")
 		ret.update({
 			'goto'    : 'ent_%s1' % val['etype'],
 			'enable'  : [
@@ -169,8 +163,6 @@ def _wizcb_ent_generic_next(wiz, step, act, val, req):
 				if st.id.startswith('ent_')
 			]
 		})
-	print("RET")
-	print(ret)
 	return ret
 
 def _wizcb_ent_submit(cls):
