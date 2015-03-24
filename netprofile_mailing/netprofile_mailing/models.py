@@ -90,17 +90,6 @@ from pyramid.i18n import (
 
 _ = TranslationStringFactory('netprofile_mailing')
 
-
-#####################################
-#CREATE TABLE `mailing_templates` (
-#  `templid` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Template ID',
-#  `name` varchar(255) NOT NULL COMMENT 'Template Name',
-#  `body` text COMMENT 'Template Body',
-#  PRIMARY KEY (`templid`),
-#  KEY `i_name` (`name`)
-#) ENGINE=InnoDB AUTO_INCREMENT=97 DEFAULT CHARSET=utf8 COMMENT='Mailing Templates' 
-#####################################
-
 class MailingTemplate(Base):
 	"""
 	Mailing Template object
@@ -169,22 +158,6 @@ class MailingTemplate(Base):
 		}
 	)
 	#..... 
-
-
-#################################################
-#CREATE TABLE `mailing_log` (
-#  `logid` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Log ID',
-#  `senttime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Sending Timestamp',
-#  `readtime` timestamp NULL DEFAULT NULL COMMENT 'Read Timestamp',
-#  `userid` int(10) unsigned DEFAULT NULL COMMENT 'Access Entity ID',
-#  `letteruid` varchar(255) NOT NULL COMMENT 'Letter UID',
-#  `isread` enum('Y','N') CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'N' COMMENT 'Is letter read?',
-#  PRIMARY KEY (`logid`),
-#  KEY `i_iserid` (`userid`),
-#  KEY `i_letteruid` (`letteruid`),
-#  CONSTRAINT `mailing_log_fk_userid` FOREIGN KEY (`userid`) REFERENCES `entities_access` (`entityid`) ON UPDATE CASCADE
-#) ENGINE=InnoDB AUTO_INCREMENT=97 DEFAULT CHARSET=utf8 COMMENT='Mailing Logs'
-################################################
 
 class MailingLog(Base):
 	__tablename__ = 'mailing_log'
@@ -294,16 +267,6 @@ class MailingLog(Base):
 		innerjoin=True,
 		backref='mailinglog_entities'
 	)
-
-
-################################################
-#CREATE TABLE `mailing_settings` (
-#  `userid` int(10) unsigned NOT NULL COMMENT 'Domain ID',
-#  `issubscribed` enum('Y','N') CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'Y' COMMENT 'Is user subscribed?',
-#  UNIQUE KEY `u_userid` (`userid`),
-#  CONSTRAINT `mailing_settings_fk_userid` FOREIGN KEY (`userid`) REFERENCES `entities_access` (`entityid`) ON UPDATE CASCADE
-#) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Mailing Settings'
-################################################
 
 class MailingSubscription(Base):
 	"""
