@@ -91,6 +91,16 @@ from pyramid.i18n import (
 _ = TranslationStringFactory('netprofile_mailing')
 
 
+#####################################
+#CREATE TABLE `mailing_templates` (
+#  `templid` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Template ID',
+#  `name` varchar(255) NOT NULL COMMENT 'Template Name',
+#  `body` text COMMENT 'Template Body',
+#  PRIMARY KEY (`templid`),
+#  KEY `i_name` (`name`)
+#) ENGINE=InnoDB AUTO_INCREMENT=97 DEFAULT CHARSET=utf8 COMMENT='Mailing Templates' 
+#####################################
+
 class MailingTemplate(Base):
 	"""
 	Mailing Template object
@@ -143,7 +153,7 @@ class MailingTemplate(Base):
 	)
 	name = Column(
 		Unicode(255),
-		Comment('Template name'),
+		Comment('Template Name'),
 		nullable=False,
 		info={
 			'header_string' : _('Name')
@@ -151,7 +161,6 @@ class MailingTemplate(Base):
 	)
 	#ADD HTML EDITOR HERE LIKE IN DOCUMENTS
 	body = Column(
-		'body',
 		UnicodeText(),
 		Comment('Template body'),
 		nullable=False,
@@ -161,10 +170,26 @@ class MailingTemplate(Base):
 	)
 	#..... 
 
+
+#################################################
+#CREATE TABLE `mailing_log` (
+#  `logid` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Log ID',
+#  `senttime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Sending Timestamp',
+#  `readtime` timestamp NULL DEFAULT NULL COMMENT 'Read Timestamp',
+#  `userid` int(10) unsigned DEFAULT NULL COMMENT 'Access Entity ID',
+#  `letteruid` varchar(255) NOT NULL COMMENT 'Letter UID',
+#  `isread` enum('Y','N') CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'N' COMMENT 'Is letter read?',
+#  PRIMARY KEY (`logid`),
+#  KEY `i_iserid` (`userid`),
+#  KEY `i_letteruid` (`letteruid`),
+#  CONSTRAINT `mailing_log_fk_userid` FOREIGN KEY (`userid`) REFERENCES `entities_access` (`entityid`) ON UPDATE CASCADE
+#) ENGINE=InnoDB AUTO_INCREMENT=97 DEFAULT CHARSET=utf8 COMMENT='Mailing Logs'
+################################################
+
 class MailingLog(Base):
 	__tablename__ = 'mailing_log'
 	__table_args__ = (
-		Comment('Mailing Templates'),
+		Comment('Mailing Logs'),
 		Index('mailing_log_u_uid', 'uid', unique=True),
 		#Trigger('after', 'insert', 't_nets_def_ai'),
 		#Trigger('after', 'update', 't_nets_def_au'),
@@ -271,6 +296,15 @@ class MailingLog(Base):
 	)
 
 
+################################################
+#CREATE TABLE `mailing_settings` (
+#  `userid` int(10) unsigned NOT NULL COMMENT 'Domain ID',
+#  `issubscribed` enum('Y','N') CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'Y' COMMENT 'Is user subscribed?',
+#  UNIQUE KEY `u_userid` (`userid`),
+#  CONSTRAINT `mailing_settings_fk_userid` FOREIGN KEY (`userid`) REFERENCES `entities_access` (`entityid`) ON UPDATE CASCADE
+#) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Mailing Settings'
+################################################
+
 class MailingSubscription(Base):
 	"""
 	Mailing subscription settings
@@ -313,7 +347,7 @@ class MailingSubscription(Base):
 	userid = Column(
 		'userid',
 		UInt32(),
-		ForeignKey('entities_access.entityid', name='entities_access_fk_entityid', ondelete='CASCADE', onupdate='CASCADE'),
+		ForeignKey('entities_access.entityid', name='mailing_settings_fk_userid', ondelete='CASCADE', onupdate='CASCADE'),
 		Comment('Access Entity ID'),
 		primary_key=True,
 		nullable=False,
@@ -321,8 +355,8 @@ class MailingSubscription(Base):
 			'header_string' : _('User ID')
 		}
 	)
-		isread = Column(
-		'isread',
+	issubscribed = Column(
+		'issubscribed',
 		NPBoolean(),
 		Comment('Is letter read?'),
 		nullable=False,
