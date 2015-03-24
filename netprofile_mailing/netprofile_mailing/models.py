@@ -42,8 +42,7 @@ from sqlalchemy import (
 	Sequence,
 	TIMESTAMP,
 	Unicode,
-	UnicodeText,
-	text
+	UnicodeText
 )
 
 from sqlalchemy.orm import (
@@ -98,7 +97,7 @@ class MailingTemplate(Base):
 	__table_args__ = (
 		Comment('Mailing Templates'),
 		Index('mailing_templates_u_name', 'name', unique=True),
-		Index('mailing_templates_u_text', 'text', unique=True),
+		Index('mailing_templates_u_text', 'body', unique=True),
 		#Trigger('after', 'insert', 't_nets_def_ai'),
 		#Trigger('after', 'update', 't_nets_def_au'),
 		#Trigger('after', 'delete', 't_nets_def_ad'),
@@ -163,7 +162,7 @@ class MailingLog(Base):
 	__tablename__ = 'mailing_log'
 	__table_args__ = (
 		Comment('Mailing Logs'),
-		Index('mailing_log_u_uid', 'uid', unique=True),
+		Index('mailing_log_u_letteruid', 'letteruid', unique=True),
 		#Trigger('after', 'insert', 't_nets_def_ai'),
 		#Trigger('after', 'update', 't_nets_def_au'),
 		#Trigger('after', 'delete', 't_nets_def_ad'),
@@ -233,7 +232,7 @@ class MailingLog(Base):
 	userid = Column(
 		'userid',
 		UInt32(),
-		ForeignKey('entities_access.entityid', name='entities_access_fk_entityid', ondelete='CASCADE', onupdate='CASCADE'),
+		ForeignKey('entities_access.entityid', name='mailing_log_fk_userid', ondelete='CASCADE', onupdate='CASCADE'),
 		Comment('Access Entity ID'),
 		primary_key=True,
 		nullable=False,
@@ -263,9 +262,9 @@ class MailingLog(Base):
 
 	#CHECK IF WORKS
 	user = relationship(
-		'Entity',
-		innerjoin=True,
-		backref='mailinglog_entities'
+		'AccessEntity',
+		backref='mailinglog_entities',
+		primaryjoin='MailingLog.userid == AccessEntity.id'
 	)
 
 class MailingSubscription(Base):
@@ -295,10 +294,10 @@ class MailingSubscription(Base):
 				'menu_main'     : False,
 				'default_sort'  : ({ 'property': 'user', 'direction': 'ASC' },),
 				'grid_view'     : (
-					'user', 'issubscripted'
+					'user', 'issubscribed'
 				),
 				'form_view'     : (
-					'user', 'issubscripted'
+					'user', 'issubscribed'
 				),
 				'easy_search'   : ('user'),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
@@ -331,7 +330,7 @@ class MailingSubscription(Base):
 	)
 	#CHECK IF WORKS
 	user = relationship(
-		'Entity',
-		innerjoin=True,
-		backref='subscription_entities'
+		'AccessEntity',
+		backref='subscription_entities',
+		primaryjoin='MailingSubscription.userid == AccessEntity.id'
 	)

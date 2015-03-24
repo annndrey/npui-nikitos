@@ -49,7 +49,7 @@ class Module(ModuleBase):
 		from netprofile_mailing import models
 		return (
 			models.MailingTemplate,
-			models.MainilgLog,
+			models.MailingLog,
 			models.MailingSubscription,
 		)
 
