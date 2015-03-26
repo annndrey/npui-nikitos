@@ -112,7 +112,7 @@ class MailingTemplate(Base):
 				'cap_edit'      : 'NETS_EDIT',
 				'cap_delete'    : 'NETS_DELETE',
 				'menu_name'     : _('Mail Templates'),
-				'show_in_menu'  : 'modules',
+				'show_in_menu'  : 'admin',
 				'menu_order'    : 10,
 				'menu_main'     : False,
 				'default_sort'  : ({ 'property': 'name', 'direction': 'ASC' },),
@@ -153,10 +153,39 @@ class MailingTemplate(Base):
 		Comment('Template body'),
 		nullable=False,
 		info={
-			'header_string' : _('Template Body')
-		}
+			'header_string' : _('Template Body'),
+			'editor_xtype'  : 'tinymce_field',
+			'editor_config' : {
+				'tinyMCEConfig' : {
+					'theme'                             : 'advanced',
+					'skin'                              : 'extjs',
+					'inlinepopups_skin'                 : 'extjs',
+					'theme_advanced_row_height'         : 27,
+					'delta_height'                      : 1,
+					'schema'                            : 'html5',
+					'plugins'                           : 'lists,pagebreak,style,layer,table,save,advhr,advimage,advlink,iespell,inlinepopups,insertdatetime,preview,media,searchreplace,print,contextmenu,paste,directionality,fullscreen,noneditable,visualchars,visualblocks,nonbreaking,xhtmlxtras,template,wordcount,advlist',
+
+					'theme_advanced_buttons1'           : 'bold,italic,underline,strikethrough,|,justifyleft,justifycenter,justifyright,justifyfull,styleselect,formatselect,fontselect,fontsizeselect',
+					'theme_advanced_buttons2'           : 'cut,copy,paste,pastetext,pasteword,|,search,replace,|,bullist,numlist,|,outdent,indent,blockquote,|,undo,redo,|,link,unlink,anchor,image,cleanup,help,code,|,insertdate,inserttime,preview,|,forecolor,backcolor',
+					'theme_advanced_buttons3'           : 'tablecontrols,|,hr,removeformat,visualaid,|,sub,sup,|,charmap,emotions,iespell,media,advhr,|,print,|,ltr,rtl,|,fullscreen',
+					'theme_advanced_buttons4'           : 'insertlayer,moveforward,movebackward,absolute,|,styleprops,|,cite,abbr,acronym,del,ins,attribs,|,visualchars,visualblocks,nonbreaking,template,pagebreak,restoredraft',
+
+					'theme_advanced_toolbar_location'   : 'top',
+					'theme_advanced_toolbar_align'      : 'left',
+					'theme_advanced_statusbar_location' : 'bottom',
+
+					'extended_valid_elements'           : '+tpl[if|elsif|else|for|foreach|switch|case|default]',
+					'custom_elements'                   : '~tpl',
+					'valid_children'                    : '+*[tpl],+tpl[*],+tbody[tpl],+body[tpl],+table[tpl],+tpl[table|tr|tpl|#text]'
+
+					}
+				}
+			}
 	)
 	#..... 
+	def __str__(self):
+		return self.name
+
 
 class MailingLog(Base):
 	__tablename__ = 'mailing_log'
@@ -177,7 +206,7 @@ class MailingLog(Base):
 				'cap_edit'      : 'NETS_EDIT',
 				'cap_delete'    : 'NETS_DELETE',
 				'menu_name'     : _('Mailing Logs'),
-				'show_in_menu'  : 'modules',
+				'show_in_menu'  : 'admin',
 				'menu_order'    : 20,
 				'menu_main'     : False,
 				'default_sort'  : ({ 'property': 'senttime', 'direction': 'ASC' },),
@@ -190,10 +219,27 @@ class MailingLog(Base):
 				'easy_search'   : ('user'),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
 				#TO REMOVE, SHOULD NOT BE CREATED MANUALLY
-				'create_wizard' : SimpleWizard(title=_('Add new mailing log'))
+				#look at Entities and Access modules
+				#еще можно посмотреть в tickets как сделано on_submit. 
+				#нам надо брать данные из визарда, вычислять все что нужно и возвраащать соотв поля для создания новой записи и еще отправлять письмо т.е. 
+				#искать емейл и туда слать
+				#и еще чтобы можно было выбирать шаблон
+				#и вставлять его в письмо
+				'create_wizard' : Wizard(
+					Step(
+						'user', 
+						ExternalWizardField('MailingTemplate', 'body'),
+						title=_('Send new mail'),
+						id='ent_access1'# title=_('Access entity properties'),
+						#on_prev='generic',
+						#on_submit=_wizcb_ent_submit('AccessEntity')
+						),
+					title=_('Send new mail')
+					)
+				
+				}
 			}
-		}
-	)
+		)
 	id = Column(
 		'logid',
 		UInt32(),
@@ -245,9 +291,35 @@ class MailingLog(Base):
 		Comment('Letter UID'),
 		nullable=False,
 		info={
-			'header_string' : _('Letter UID')
-		}
-	)
+			'header_string' : _('Letter Body'),
+			'editor_xtype'  : 'tinymce_field',
+			'editor_config' : {
+				'tinyMCEConfig' : {
+					'theme'                             : 'advanced',
+					'skin'                              : 'extjs',
+					'inlinepopups_skin'                 : 'extjs',
+					'theme_advanced_row_height'         : 27,
+					'delta_height'                      : 1,
+					'schema'                            : 'html5',
+					'plugins'                           : 'lists,pagebreak,style,layer,table,save,advhr,advimage,advlink,iespell,inlinepopups,insertdatetime,preview,media,searchreplace,print,contextmenu,paste,directionality,fullscreen,noneditable,visualchars,visualblocks,nonbreaking,xhtmlxtras,template,wordcount,advlist',
+
+					'theme_advanced_buttons1'           : 'bold,italic,underline,strikethrough,|,justifyleft,justifycenter,justifyright,justifyfull,styleselect,formatselect,fontselect,fontsizeselect',
+					'theme_advanced_buttons2'           : 'cut,copy,paste,pastetext,pasteword,|,search,replace,|,bullist,numlist,|,outdent,indent,blockquote,|,undo,redo,|,link,unlink,anchor,image,cleanup,help,code,|,insertdate,inserttime,preview,|,forecolor,backcolor',
+					'theme_advanced_buttons3'           : 'tablecontrols,|,hr,removeformat,visualaid,|,sub,sup,|,charmap,emotions,iespell,media,advhr,|,print,|,ltr,rtl,|,fullscreen',
+					'theme_advanced_buttons4'           : 'insertlayer,moveforward,movebackward,absolute,|,styleprops,|,cite,abbr,acronym,del,ins,attribs,|,visualchars,visualblocks,nonbreaking,template,pagebreak,restoredraft',
+
+					'theme_advanced_toolbar_location'   : 'top',
+					'theme_advanced_toolbar_align'      : 'left',
+					'theme_advanced_statusbar_location' : 'bottom',
+
+					'extended_valid_elements'           : '+tpl[if|elsif|else|for|foreach|switch|case|default]',
+					'custom_elements'                   : '~tpl',
+					'valid_children'                    : '+*[tpl],+tpl[*],+tbody[tpl],+body[tpl],+table[tpl],+tpl[table|tr|tpl|#text]'
+
+					}
+				}
+			}
+		)
 	isread = Column(
 		'isread',
 		NPBoolean(),
@@ -289,7 +361,7 @@ class MailingSubscription(Base):
 				'cap_edit'      : 'NETS_EDIT',
 				'cap_delete'    : 'NETS_DELETE',
 				'menu_name'     : _('Mailing Settings'),
-				'show_in_menu'  : 'modules',
+				'show_in_menu'  : 'admin',
 				'menu_order'    : 30,
 				'menu_main'     : False,
 				'default_sort'  : ({ 'property': 'user', 'direction': 'ASC' },),
