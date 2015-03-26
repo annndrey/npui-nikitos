@@ -75,7 +75,11 @@ from netprofile.db.ddl import (
 )
 from netprofile.tpl import TemplateObject
 from netprofile.ext.columns import MarkupColumn
-
+from netprofile.common.hooks import register_hook
+from netprofile.ext.data import (
+	ExtModel,
+	_name_to_class
+)
 from netprofile.ext.wizards import (
 	ExternalWizardField,
 	SimpleWizard,
@@ -88,6 +92,38 @@ from pyramid.i18n import (
 )
 
 _ = TranslationStringFactory('netprofile_mailing')
+
+@register_hook('np.wizard.init.mailing.MailingLog')
+#def _wizcb_aent_init(wizard, model, req):
+def _wizcb_maillog_submit(wiz, step, act, val, req):
+	sess = DBSession()
+	em = ExtModel(MailingLog)
+	obj = MailingLog()
+	print("OLOLO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		# Work around field name clash
+	if 'state' in val:
+		del val['state']
+		### Calculate letter hash here
+		### and send mail to user
+		### and add new log to database if successful sent
+	print(val)
+	#{'body': '<p>ууцййцуцйу</p>', 'userid': '75', 'user': 'Doge'}
+	#Column 'letteruid' cannot be null
+	em.set_values(obj, val, req, True)
+	sess.add(obj)
+	return {
+		'do'     : 'close',
+		'reload' : True
+		}
+
+	#wizard.steps.append(Step(
+	#	ExternalWizardField('AccessEntity', 'password'),
+	#	ExternalWizardField('AccessEntity', 'stash'),
+	#	ExternalWizardField('AccessEntity', 'rate'),
+	#	id='ent_access1', title=_('Access entity properties'),
+	#	on_prev='generic',
+	#	on_submit=_wizcb_aent_submit
+	#))
 
 class MailingTemplate(Base):
 	"""
@@ -211,10 +247,10 @@ class MailingLog(Base):
 				'menu_main'     : False,
 				'default_sort'  : ({ 'property': 'senttime', 'direction': 'ASC' },),
 				'grid_view'     : (
-					'senttime', 'user', 'letteruid', 'isread'
+					'senttime', 'user', 'isread', 'letteruid'
 				),
 				'form_view'     : (
-					'senttime', 'user', 'letteruid', 'isread', 'readtime'
+					'senttime', 'readtime', 'user', 'isread', 'letteruid'
 				),
 				'easy_search'   : ('user'),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
@@ -230,9 +266,9 @@ class MailingLog(Base):
 						'user', 
 						ExternalWizardField('MailingTemplate', 'body'),
 						title=_('Send new mail'),
-						id='ent_access1'# title=_('Access entity properties'),
-						#on_prev='generic',
-						#on_submit=_wizcb_ent_submit('AccessEntity')
+						id='generic',
+						on_prev='generic',
+						on_submit=_wizcb_maillog_submit
 						),
 					title=_('Send new mail')
 					)

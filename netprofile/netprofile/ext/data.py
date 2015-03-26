@@ -2,7 +2,7 @@
 # -*- coding: utf-8; tab-width: 4; indent-tabs-mode: t -*-
 #
 # NetProfile: ExtJS schema and data generation
-# © Copyright 2013-2014 Alex 'Unik' Unigovsky
+# © Copyright 2013-2015 Alex 'Unik' Unigovsky
 #
 # This file is part of NetProfile.
 # NetProfile is free software: you can redistribute it and/or
@@ -29,7 +29,6 @@ from __future__ import (
 
 import importlib
 import logging
-import colander
 import decimal
 
 import datetime as dt
@@ -87,6 +86,7 @@ from netprofile.db.fields import (
 	IPv4Address,
 	IPv6Address,
 	IPv6Offset,
+	MACAddress,
 	Money,
 	NPBoolean,
 	Traffic,
@@ -95,7 +95,6 @@ from netprofile.db.fields import (
 	UInt32,
 	UInt64
 )
-from netprofile.db.colander import SQLAlchemySchemaNode
 
 # USE ME!
 #from sqlalchemy.orm import (
@@ -127,8 +126,6 @@ _INTEGER_SET = (
 	Int32,
 	Int64,
 	Integer,
-	IPv6Offset, #?
-	Traffic, #?
 	UInt8,
 	UInt16,
 	UInt32,
@@ -138,7 +135,8 @@ _INTEGER_SET = (
 _DECIMAL_SET = (
 	IPv6Offset,
 	Money,
-	Numeric
+	Numeric,
+	Traffic
 )
 
 _STRING_SET = (
@@ -168,7 +166,7 @@ _IPADDR_SET = (
 )
 
 _COLUMN_XTYPE_MAP = {
-	BigInteger   : 'numbercolumn',
+	BigInteger   : 'numbercolumn', # ?
 	Boolean      : 'checkcolumn',
 	DeclEnumType : 'enumcolumn',
 	Enum         : 'enumcolumn',
@@ -176,27 +174,27 @@ _COLUMN_XTYPE_MAP = {
 	Int8         : 'numbercolumn',
 	Int16        : 'numbercolumn',
 	Int32        : 'numbercolumn',
-	Int64        : 'numbercolumn',
+	Int64        : 'numbercolumn', # ?
 	Integer      : 'numbercolumn',
 	IPv4Address  : 'ipaddrcolumn',
 	IPv6Address  : 'ipaddrcolumn',
 	IPv6Offset   : 'numbercolumn',
-	Money        : 'numbercolumn',
+	Money        : 'numbercolumn', # ?
 	NPBoolean    : 'checkcolumn',
-	Numeric      : 'numbercolumn',
+	Numeric      : 'numbercolumn', # ?
 	SmallInteger : 'numbercolumn',
 	TIMESTAMP    : 'datecolumn',
-	Traffic      : 'numbercolumn',
+	Traffic      : 'numbercolumn', # ?
 	UInt8        : 'numbercolumn',
 	UInt16       : 'numbercolumn',
 	UInt32       : 'numbercolumn',
-	UInt64       : 'numbercolumn'
+	UInt64       : 'numbercolumn' # ?
 }
 
 _EDITOR_XTYPE_MAP = {
 	ASCIITinyText : 'textareafield',
 	ASCIIText     : 'textareafield',
-	BigInteger    : 'numberfield',
+	BigInteger    : 'numberfield', # ?
 	Boolean       : 'checkbox',
 	Date          : 'datefield',
 	DateTime      : 'datetimefield',
@@ -206,26 +204,27 @@ _EDITOR_XTYPE_MAP = {
 	Int8          : 'numberfield',
 	Int16         : 'numberfield',
 	Int32         : 'numberfield',
-	Int64         : 'numberfield',
+	Int64         : 'numberfield', # ?
 	Integer       : 'numberfield',
 	IPv4Address   : 'ipv4field',
+	IPv6Address   : 'ipv6field',
 	IPv6Offset    : 'numberfield',
-	Money         : 'numberfield',
+	Money         : 'numberfield', # ?
 	NPBoolean     : 'checkbox',
-	Numeric       : 'numberfield',
+	Numeric       : 'numberfield', # ?
 	SmallInteger  : 'numberfield',
 	Time          : 'timefield',
 	TIMESTAMP     : 'datetimefield',
-	Traffic       : 'numberfield',
+	Traffic       : 'numberfield', # ?
 	UInt8         : 'numberfield',
 	UInt16        : 'numberfield',
 	UInt32        : 'numberfield',
-	UInt64        : 'numberfield',
+	UInt64        : 'numberfield', # ?
 	UnicodeText   : 'textareafield'
 }
 
 _JS_TYPE_MAP = {
-	BigInteger   : 'int',
+	BigInteger   : 'int', # ?
 	Boolean      : 'boolean',
 	Date         : 'date',
 	DateTime     : 'date',
@@ -233,11 +232,10 @@ _JS_TYPE_MAP = {
 	Money        : 'float', # ?
 	NPBoolean    : 'boolean',
 	Numeric      : 'float', # ?
-	Numeric      : 'float', # ?
 	Int8         : 'int',
 	Int16        : 'int',
 	Int32        : 'int',
-	Int64        : 'int',
+	Int64        : 'int', # ?
 	Integer      : 'int',
 	IPv4Address  : 'ipv4',
 	IPv6Address  : 'ipv6',
@@ -245,11 +243,11 @@ _JS_TYPE_MAP = {
 	PickleType   : 'auto',
 	SmallInteger : 'int',
 	TIMESTAMP    : 'date',
-	Traffic      : 'int',
+	Traffic      : 'int', # ?
 	UInt8        : 'int',
 	UInt16       : 'int',
 	UInt32       : 'int',
-	UInt64       : 'int'
+	UInt64       : 'int' # ?
 }
 
 _DATE_FMT_MAP = {
@@ -355,6 +353,8 @@ class ExtColumn(object):
 	@property
 	def length(self):
 		typecls = self.column.type.__class__
+		if typecls is MACAddress:
+			return 17
 		try:
 			if typecls is DeclEnumType:
 				xlen = 0
@@ -456,32 +456,6 @@ class ExtColumn(object):
 			return _JS_TYPE_MAP[cls]
 		return 'string'
 
-	@property
-	def colander_type(self):
-		cls = self.column.type.__class__
-		ccls = colander.String
-		if hasattr(self.column.type, 'impl'):
-			cls = self.column.type.impl
-			if isinstance(cls, TypeEngine):
-				cls = cls.__class__
-		if cls in _COLANDER_TYPE_MAP:
-			ccls = _COLANDER_TYPE_MAP[cls]
-		elif issubclass(cls, Boolean):
-			ccls = colander.Boolean
-		elif issubclass(cls, Date):
-			ccls = colander.Date
-		elif issubclass(cls, DateTime):
-			ccls = colander.DateTime
-		elif issubclass(cls, Float):
-			ccls = colander.Float
-		elif issubclass(cls, Integer):
-			ccls = colander.Integer
-		elif issubclass(cls, Numeric):
-			ccls = colander.Decimal
-		elif issubclass(cls, Time):
-			ccls = colander.Time
-		return ccls()
-
 	def _set_min_max(self, conf):
 		typecls = self.column.type.__class__
 		vmin = self.column.info.get('min_value', None)
@@ -581,9 +555,16 @@ class ExtColumn(object):
 			return param
 		if issubclass(typecls, _IPADDR_SET):
 			if isinstance(param, dict):
-				if 'value' not in param:
+				if 'octets' in param:
+					param = param['octets']
+				elif 'parts' in param:
+					param = [byte for word in param['parts'] for byte in (word >> 8, word % 256)]
+				elif 'value' in param:
+					param = param['value']
+				else:
 					return None
-				param = param['value']
+				if isinstance(param, (list, tuple)):
+					param = bytes(param)
 			if issubclass(typecls, IPv4Address):
 				return ipaddr.IPv4Address(param)
 			if issubclass(typecls, IPv6Address):
@@ -594,39 +575,6 @@ class ExtColumn(object):
 				return None
 			return int(param)
 		return param
-
-	def get_colander_validations(self):
-		typecls = self.column.type.__class__
-		ret = []
-		if issubclass(typecls, _INTEGER_SET):
-			vmin = getattr(typecls, 'MIN_VALUE')
-			vmax = getattr(typecls, 'MAX_VALUE')
-			if vmax is None:
-				if issubclass(typecls, SmallInteger):
-					if getattr(self.column.type, 'unsigned', False):
-						vmin = UInt16.MIN_VALUE
-						vmax = UInt16.MAX_VALUE
-					else:
-						vmin = Int16.MIN_VALUE
-						vmax = Int16.MAX_VALUE
-				elif issubclass(typecls, Integer):
-					if getattr(self.column.type, 'unsigned', False):
-						vmin = UInt32.MIN_VALUE
-						vmax = UInt32.MAX_VALUE
-					else:
-						vmin = Int32.MIN_VALUE
-						vmax = Int32.MAX_VALUE
-			if (vmin is not None) or (vmax is not None):
-				ret.append(colander.Range(min=vmin, max=vmax))
-		if issubclass(typecls, _STRING_SET):
-			vmin = None
-			vmax = self.length
-			if not self.nullable:
-				vmin = 1
-			ret.append(colander.Length(min=vmin, max=vmax))
-		if typecls is DeclEnumType:
-			ret.append(colander.OneOf(self.column.type.enum.values()))
-		return ret
 
 	def get_model_validations(self):
 		typecls = self.column.type.__class__
@@ -699,7 +647,7 @@ class ExtColumn(object):
 		if (self.column.primary_key) or \
 				(len(self.column.foreign_keys) > 0): # add check for read-only non-pk fields
 			hret = {
-				'xtype'      : 'hidden',
+				'xtype'      : 'hidden' if in_form else 'numberfield',
 				'editable'   : False,
 				'allowBlank' : self.nullable,
 				'name'       : self.name
@@ -758,7 +706,7 @@ class ExtColumn(object):
 			self._set_min_max(conf)
 		elif issubclass(typecls, _DECIMAL_SET):
 			conf.update({
-				'allowDecimals' : True
+				'allowDecimals' : (True if self.column.type.scale > 0 else False)
 			})
 			if self.unsigned:
 				conf['allowNegative'] = False
@@ -889,7 +837,7 @@ class ExtColumn(object):
 		if issubclass(typecls, _DECIMAL_SET):
 			conf.update({
 				'align'  : 'right',
-				'format' : '0.00'
+				'format' : ('0.00' if self.column.type.scale > 0 else '0')
 			})
 		if issubclass(typecls, _INTEGER_SET):
 			conf.update({
@@ -999,10 +947,6 @@ class ExtPseudoColumn(ExtColumn):
 		if not callable(self.column.parse):
 			return param
 		return self.column.parse(param)
-
-	def get_colander_validations(self):
-		# FIXME: add smth here
-		raise NotImplementedError('Colander support is missing for pseudo columns.')
 
 	def get_model_validations(self):
 		# FIXME: add smth here
@@ -1387,8 +1331,19 @@ class ExtModel(object):
 		)
 
 	@property
+	def export_view(self):
+		return self.model.__table__.info.get(
+			'export_view',
+			self.model.__table__.info.get('grid_view', ())
+		)
+
+	@property
 	def extra_data(self):
 		return self.model.__table__.info.get('extra_data', ())
+
+	@property
+	def extra_actions(self):
+		return self.model.__table__.info.get('extra_actions', ())
 
 	def get_column(self, colname):
 		if isinstance(colname, PseudoColumn):
@@ -1533,9 +1488,6 @@ class ExtModel(object):
 				ret.extend(colrel)
 		return ret
 
-	def get_colander_schema(self, **kwargs):
-		return SQLAlchemySchemaNode(self.model, **kwargs)
-
 	def get_model_validations(self):
 		ret = []
 		for cname, col in self.get_read_columns().items():
@@ -1624,7 +1576,7 @@ class ExtModel(object):
 						if fkey == 'notin':
 							query = query.filter(not col.in_(fval))
 							continue
-						# parse_param chokes on list values (maybe fix?)
+						# FIXME: parse_param chokes on list values
 						continue
 					fval = extcol.parse_param(fval)
 					if fkey == 'eq':
@@ -1634,7 +1586,6 @@ class ExtModel(object):
 						query = query.filter(col != fval)
 						continue
 					if issubclass(colcls, _DATE_SET):
-						#fval = dparse(fval)
 						if fval.tzinfo is not None:
 							fval = fval.astimezone(tzlocal())
 						if fval is None:
@@ -1809,6 +1760,7 @@ class ExtModel(object):
 	def read_one(self, params, request):
 		logger.info('Running ExtDirect class:%s method:%s', self.name, 'read_one')
 		logger.debug('Params: %r', params)
+		raise RuntimeError('read_one() not implemented')
 
 	def set_values(self, obj, values, request, is_create=False):
 		cols = self.get_columns()
@@ -2093,17 +2045,25 @@ class ExtModel(object):
 		fields = {}
 		for index in self.u_idx:
 			has_all = True
+			has_defined = False
 			for ifld in index:
-				if (ifld not in values) or (ifld not in cols) or (ifld not in trans):
+				if (ifld not in cols) or (ifld not in trans):
 					has_all = False
-			if not has_all:
+					break
+				colval = values.get(ifld)
+				if colval is not None:
+					has_defined = True
+				elif not cols[ifld].nullable:
+					has_all = False
+					break
+			if (not has_all) or (not has_defined):
 				continue
 			q = sess.query(func.count('*')).select_from(self.model)
 			for ifld in index:
 				prop = trans[ifld]
 				extcol = cols[ifld]
 				col = getattr(self.model, prop.key)
-				q = q.filter(col == extcol.parse_param(values[ifld]))
+				q = q.filter(col == extcol.parse_param(values.get(ifld)))
 			if pkey is not None:
 				col = getattr(self.model, self.object_pk)
 				q = q.filter(col != pkey)
@@ -2123,6 +2083,12 @@ class ExtModel(object):
 		logger.info('Running ExtDirect class:%s method:%s', self.name, 'get_create_wizard')
 		wiz = self.create_wizard
 		if wiz:
+			if not wiz.init_done:
+				request.run_hook(
+					'np.wizard.init.%s.%s' % (self.model.__moddef__, self.name),
+					wiz, self, request
+				)
+				wiz.init_done = True
 			title = wiz.title
 			if title:
 				loc = get_localizer(request)
@@ -2146,6 +2112,12 @@ class ExtModel(object):
 		wizdict = self.wizards
 		if wizdict and (wname in wizdict):
 			wiz = wizdict[wname]
+			if not wiz.init_done:
+				request.run_hook(
+					'np.wizard.init.%s.%s' % (self.model.__moddef__, self.name),
+					wiz, self, request
+				)
+				wiz.init_done = True
 			title = wiz.title
 			if title:
 				loc = get_localizer(request)
@@ -2169,7 +2141,13 @@ class ExtModel(object):
 		logger.debug('Params: %r', (pane_id, act, values))
 		wiz = self.create_wizard
 		if wiz:
-			ret = wiz.action(pane_id, act, values, request)
+			if not wiz.init_done:
+				request.run_hook(
+					'np.wizard.init.%s.%s' % (self.model.__moddef__, self.name),
+					wiz, self, request
+				)
+				wiz.init_done = True
+			ret = wiz.action(self, pane_id, act, values, request)
 			if ret:
 				request.run_hook('np.create_wizard.action', ret, wiz, pane_id, act, values, request, self)
 				return {
@@ -2184,7 +2162,13 @@ class ExtModel(object):
 		wizdict = self.wizards
 		if wizdict and (wname in wizdict):
 			wiz = wizdict[wname]
-			ret = wiz.action(pane_id, act, values, request)
+			if not wiz.init_done:
+				request.run_hook(
+					'np.wizard.init.%s.%s' % (self.model.__moddef__, self.name),
+					wiz, self, request
+				)
+				wiz.init_done = True
+			ret = wiz.action(self, pane_id, act, values, request)
 			if ret:
 				request.run_hook('np.wizard.action', ret, wiz, pane_id, act, values, request, self)
 				return {
@@ -2385,4 +2369,7 @@ class ExtBrowser(object):
 		req.run_hook('np.menu', name, menu, req, self)
 
 		return menu
+
+	def get_export_menu(self, req):
+		return tuple(fmt.export_panel(req, name) for name, fmt in sorted(self.mmgr.get_export_formats().items(), key=lambda x: x[0]))
 
