@@ -53,11 +53,6 @@ class Module(ModuleBase):
 			models.MailingSubscription,
 		)
 
-	#def get_css(self, request):
-	#	return (
-	#		'netprofile_mailing:static/css/main.css',
-	#	)
-
 	@property
 	def name(self):
 		return _('Mailing')
