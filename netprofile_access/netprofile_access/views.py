@@ -56,6 +56,7 @@ from pyramid.i18n import (
 	get_localizer,
 	get_locale_name
 )
+from netprofile.common.modules import IModuleManager
 from pyramid.response import (
 	FileResponse,
 	Response
@@ -73,11 +74,18 @@ from netprofile.common.hooks import register_hook
 from netprofile.db.connection import DBSession
 
 from netprofile_core.models import File
+from netprofile.ext.wizards import (
+	Step,
+	ExternalWizardField
+)
 from netprofile_entities.models import (
 	Entity,
 	LegalEntity,
-	PhysicalEntity
+	PhysicalEntity,
+	_wizcb_ent_generic_next,
+	_wizcb_ent_submit
 )
+
 from netprofile_stashes.models import Stash
 from netprofile_rates.models import Rate
 
@@ -92,6 +100,22 @@ _ = TranslationStringFactory('netprofile_access')
 
 _re_login = re.compile(r'^[\w\d._-]+$')
 _re_email = re.compile(r'^[-.\w]+@(?:[\w\d-]{2,}\.)+\w{2,6}$')
+
+@register_hook('core.validators.CreateEntity')
+@register_hook('core.validators.CreateAccessEntity')
+def new_entity_validator(ret, values, request):
+	if 'etype' not in values:
+		return
+	mod = request.registry.getUtility(IModuleManager).get_module_browser()['access']
+	em = None
+	etype = values['etype']
+	if etype == 'access':
+		em = mod['AccessEntity']
+	else:
+		return
+	xret = em.validate_fields(values, request)
+	if 'errors' in xret:
+		ret['errors'].update(xret['errors'])
 
 @view_config(route_name='access.cl.home', renderer='netprofile_access:templates/client_home.mak', permission='USAGE')
 def client_home(request):
@@ -314,12 +338,8 @@ def client_oauth_twitter(request):
 	cfg = request.registry.settings
 	loc = get_localizer(request)
 	req_session = request.session
-
 	min_pwd_len = int(cfg.get('netprofile.client.registration.min_password_length', 8))
 	auth_provider = 'twitter'
-
-
-
 	email =  request.matchdict['email']
 	redirect_uri = request.route_url('access.cl.oauthtwitter', email=email)
 
@@ -353,14 +373,7 @@ def client_oauth_twitter(request):
 				}
 
 			authorize_url = twitter.get_raw_request_token(params=params)
-
 			data = parse_utf8_qsl(authorize_url.content)
-
-			# should pass callback_url
-			# and get something like http://netprofile.ru/?oauth_token=1jMq4YD5cKEgRrOjoRae3xdfHJaoQRPf&oauth_verifier=bpOPZ1CYVUGtNs8nTFihwBv6KWhJzV1C
-			# http://stackoverflow.com/questions/17512572/rauth-flask-how-to-login-via-twitter
-		    #it works
-
 			req_session['twitter_oauth'] = (data['oauth_token'], data['oauth_token_secret'])
 			return HTTPSeeOther(twitter.get_authorize_url(data['oauth_token'], **params))
 		else:
@@ -373,14 +386,12 @@ def client_oauth_twitter(request):
 			sess = twitter.get_auth_session(params=params, **creds)
 			res_json = sess.get('account/verify_credentials.json',
 							  params={'format':'json'}).json()
-			print(res_json)
-			#twitter does not provide email with rest api, we hawe to ask the user explicitly
+
 			reg_params['username'] = res_json['screen_name'].replace(' ','').lower()
 			reg_params['givenname'] = res_json['name'].split()[0]
 			reg_params['familyname'] = res_json['name'].split()[-1]
 			passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + str(res_json['id'])).encode('utf8')).hexdigest()
 			reg_params['password'] = passwordhash[::3][:8]
-
 			headers = client_oauth_register(request, reg_params)
 			
 			if headers:
@@ -404,7 +415,6 @@ def client_oauth_google(request):
 
 	GOOGLE_APP_ID = cfg.get('netprofile.client.GOOGLE_APP_ID', False)
 	GOOGLE_APP_SECRET = cfg.get('netprofile.client.GOOGLE_APP_SECRET', False)
-
 	gauthcode = request.GET.get('code', False)
 	redirect_uri = request.route_url('access.cl.oauthgoogle')
 
@@ -435,8 +445,8 @@ def client_oauth_google(request):
 		reg_params['familyname'] = res_json['family_name']
 		passwordhash = hashlib.sha224((auth_provider + reg_params['email'] + reg_params['username'] + res_json['id']).encode('utf8')).hexdigest()
 		reg_params['password'] = passwordhash[::3][:8]
-		
 		headers = client_oauth_register(request, reg_params)
+
 		if headers:
 			return HTTPSeeOther(location=request.route_url('access.cl.home'), headers=headers)
 		else:
@@ -509,9 +519,6 @@ def client_oauth_register(request, regdict):
 	nxt = request.route_url('access.cl.home')
 	loc = get_localizer(request)
 	headers = None
-	#if authenticated_userid(request):
-	#	 return HTTPSeeOther(location=nxt)
-
 	cfg = request.registry.settings
 	rate_id = int(cfg.get('netprofile.client.registration.rate_id', 1))
 	state_id = int(cfg.get('netprofile.client.registration.state_id', 1))
@@ -525,7 +532,7 @@ def client_oauth_register(request, regdict):
 	name_family = regdict.get('familyname', '')
 	name_given = regdict.get('givenname', '')
 
-	### !!!!! What if user changes his password in out database?!
+	### What if user changes his password in out database?!
 	if login is not None and passwd is not None:
 		q = sess.query(AccessEntity).filter(AccessEntity.nick == login, AccessEntity.access_state != AccessState.block_inactive.value)
 		if q is not None:
@@ -961,8 +968,6 @@ def client_restoresent(request):
 	}
 	request.run_hook('access.cl.tpldef.restoresent', tpldef, request)
 	return tpldef
-
-
 
 @view_config(route_name='access.cl.logout')
 def client_logout(request):
