@@ -162,13 +162,13 @@ class PassbookPass(Base):
 				'menu_name'     : _('Pass Tokens'),
 				'menu_main'     : True,
 				'show_in_menu'  : 'modules',
-				'menu_order'    : 20,########## correct all names
+				'menu_order'    : 20,
 				'default_sort'  : ({ 'property': 'passid', 'direction': 'ASC' },),
 				'grid_view'     : ('stash', 'token', 'serial'),
 				'form_view'     : ('stash', 'token', 'serial'),
 				'easy_search'   : ('stash',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
-				'create_wizard' : SimpleWizard(title=_('Add new token'))
+				'create_wizard' : SimpleWizard(title=_('Add new pass'))
 				}
 			}
 		)
@@ -238,6 +238,7 @@ class Stash(Base):
 		Comment('Stashes of money'),
 		Index('stashes_def_i_entityid', 'entityid'),
 		Trigger('before', 'insert', 't_stashes_def_bi'),
+		Trigger('after', 'insert', 't_stashes_def_ai'),
 		Trigger('before', 'update', 't_stashes_def_bu'),
 		{
 			'mysql_engine'  : 'InnoDB',
