@@ -2,12 +2,31 @@
 <%inherit file="netprofile_access:templates/client_layout.mak"/>
 
 
-## Domain creation button
-  <button class="btn btn-primary pull-right" data-toggle="modal" data-target="#formModalDomain">
-    <span class="glyphicon glyphicon-plus"></span>
-    ${loc.translate(_("Create a new domain"))}
-  </button>
-## domain button end 
+## Domain creation + create from template button
+  <div class="btn-group pull-right"> 
+    <button class="btn btn-primary" data-toggle="modal" data-target="#formModalDomain">
+      <span class="glyphicon glyphicon-plus"></span>
+      ${loc.translate(_("Create a new domain"))}
+    </button>
+    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">${loc.translate(_("More options..."))}</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalDomain">${loc.translate(_("Create a new domain"))}</button></li>
+      ## for t in pdns_templates:
+      ## make a list element
+      <li><a href="#">Create mail server</a></li>
+      <li><a href="#">Create jabber</a></li>
+      <li class="divider"></li>
+      <li><a href="#">Somegthing else...</a></li>
+    </ul>
+  </div>
+
+
+## domain creation + create from template button end 
+
+
 
   <h1>${loc.translate(_("My domains"))}</h1>
 
