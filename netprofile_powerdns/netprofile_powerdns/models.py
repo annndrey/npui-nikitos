@@ -531,6 +531,8 @@ class PDNSDomain(Base):
 			}
 		)
 
+	domainrecords = relationship("PDNSRecord", cascade='all, delete-orphan')
+
 	def __str__(self):
 		return self.name
 	

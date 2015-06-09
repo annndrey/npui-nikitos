@@ -6,20 +6,20 @@
   <div class="btn-group pull-right"> 
     <button class="btn btn-primary" data-toggle="modal" data-target="#formModalDomain">
       <span class="glyphicon glyphicon-plus"></span>
-      ${loc.translate(_("Create a new domain"))}
+      ${loc.translate(_("Create domain"))}
     </button>
     <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
       <span class="caret"></span>
       <span class="sr-only">${loc.translate(_("More options..."))}</span>
     </button>
     <ul class="dropdown-menu" role="menu">
-      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalDomain">${loc.translate(_("Create a new domain"))}</button></li>
-      ## for t in pdns_templates:
-      ## make a list element
-      <li><a href="#">Create mail server</a></li>
-      <li><a href="#">Create jabber</a></li>
-      <li class="divider"></li>
-      <li><a href="#">Somegthing else...</a></li>
+      ## service templates 
+      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalDomain">${loc.translate(_("Create domain"))}</button></li>
+      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalMailServer">${loc.translate(_("Create mail server"))}</button></li>
+      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalJabber">${loc.translate(_("Create jabber server"))}</button></li>
+      ## add new services here 
+      ##<li class="divider"></li>
+      ##<li><a href="#">Somegthing else...</a></li>
     </ul>
   </div>
 
@@ -290,48 +290,6 @@
     
     % endif
   
-  
-    ## Hidden modal domain creation form
-    <div class="modal fade" id="formModalDomain" tabindex="-1" role="dialog" aria-labelledby="formModalDomainLabel" aria-hidden="true">
-      <div class="modal-dialog">
-	<div class="modal-content">
-	  <div class="modal-header">
-	    
-	    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-	    <h4 class="modal-title" id="formModalDomainLabel">${loc.translate(_("New domain"))}</h4>
-	    
-	  </div>
-	  <div class="modal-body">
-	    <form method="POST" action="${req.route_url("pdns.cl.create")}" class="form-inline" role="form" id="hostForm">
-	      
-	      <div class="form-group">
-		<input type="text" name="hostName" class="form-control" id="hostName" placeholder="${loc.translate(_("Enter host"))}"/>
-	      </div>
-	      
-	      <div class="form-group">
-		<select name="hostType" class="form-control" id="hosttype" placeholder=${loc.translate(_("Host type"))}>
-		  % for i in ["NATIVE", "MASTER", "SLAVE", "SUPERSLAVE"]:
-		    <option>${i}</option>
-		  % endfor
-		</select>
-	      </div>
-	      
-	      <div class="form-group">
-		<input type="text" name="hostValue" class="form-control" id="hostValue" placeholder="${loc.translate(_("Master nameserver IP"))}">
-		<input type="hidden" name="user" id="user" value="${accessuser.nick}">
-		<input type="hidden" name="type" id="type" value="domain">
-		<input type="hidden" name="csrf" value="${req.get_csrf()}" />
-	      </div>
-	      
-	  </div>
-	  <div class="modal-footer">
-	    <input type="submit" value="${loc.translate(_("Create"))}" class="btn btn-primary"/>
-	    </form>
-	    
-	    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-	    
-	  </div>
-	</div>
-      </div>
-    </div>
+  ## put new services here  
+  <%include file="netprofile_powerdns:templates/services_templates_pdns.mak"/>
   </div>

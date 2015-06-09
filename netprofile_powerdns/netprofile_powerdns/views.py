@@ -151,7 +151,7 @@ def create_record(request):
 		return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
 	else:
 		rectype = request.POST.get('type', None)
-		if rectype == "domain":
+		if rectype != "record":
 			name = request.POST.get('hostName', None)
 			domain_clash = sess.query(func.count('*'))\
 					.select_from(PDNSDomain)\
@@ -163,10 +163,21 @@ def create_record(request):
 					'class' : 'danger'
 					})
 				return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
+			#host record
+			domaintype = request.POST.get('hosttype', 'NATIVE')
+			domainip = request.POST.get('hostValue', None)
+
+			if not domainip:
+				request.session.flash({
+						'text' : loc.translate(_('You need to specify IP address')),
+						'class' : 'danger'
+						})
+				return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
+
 			ns1 = cfg.get('netprofile.client.pdns.ns1')
 			ns2 = cfg.get('netprofile.client.pdns.ns2')
-			newdomain = PDNSDomain(name=name, master='', dtype='NATIVE', account=request.POST.get('user', None))
-
+			newdomain = PDNSDomain(name=name, master='', dtype=domaintype, account=request.POST.get('user', None))
+			
 			newsoa = PDNSRecord()
 			newsoa.domain = newdomain
 			newsoa.name = name
@@ -193,7 +204,26 @@ def create_record(request):
 			sess.add(newns1)
 			sess.add(newns2)
 
+			# select between service types here
+			if rectype in ['domain', 'mailserver', 'jabber']:
+				#add A record
+				newA = PDNSRecord()
+				newA.domain = newdomain
+				newA.name = name
+				newA.content = domainip
+				newA.rtype = 'A'
+				newA.ttl = 3600
+				
+			elif rectype == 'mailserver':
+				add CNAME record
+				add CNAME record
+				add MX record
+			elif rectype == 'jabber':
+				add SRV record
+				add SRV record
+
 			sess.flush()
+			
 		elif rectype == "record":
 			ttl = None if request.POST.get('ttl', None) == '' else request.POST.get('ttl', None);
 			prio = None if request.POST.get('prio', None) == '' else request.POST.get('prio', None);
