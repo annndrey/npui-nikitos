@@ -206,21 +206,60 @@ def create_record(request):
 
 			# select between service types here
 			if rectype in ['domain', 'mailserver', 'jabber']:
-				#add A record
-				newA = PDNSRecord()
-				newA.domain = newdomain
-				newA.name = name
-				newA.content = domainip
-				newA.rtype = 'A'
-				newA.ttl = 3600
-				
+				newA = PDNSRecord(
+					domain=newdomain,
+					name=name,
+					content=domainip,
+					rtype='A',
+					ttl=3600
+					)
+				sess.add(newA)
+
 			elif rectype == 'mailserver':
-				add CNAME record
-				add CNAME record
-				add MX record
+				mailalias = 'mail.'+newdomain
+				newCNAME = PDNSRecord(
+					domain=newdomain,
+					name=mailalias,
+					content=newdomain,
+					rtype='CNAME',
+					ttl=3600
+					)
+				newMX = PDNSRecord(
+					domain=newdomain,
+					name=newdomain,
+					content=mailalias,
+					rtype='MX',
+					ttl=3600
+					)
+				sess.add(newCNAME)
+				sess.add(newMX)
+
 			elif rectype == 'jabber':
-				add SRV record
-				add SRV record
+				jabberalias = 'jabber.'+newdomain
+				newCNAMExmpp = PDNSRecord(
+					domain=newdomain,
+					name=jabberalias,
+					content=newdomain,
+					rtype='CNAME',
+					ttl=3600
+					)
+				newSRV1 = PDNSRecord(
+					domain=newdomain,
+					name="_xmpp-client._tcp." + newdomain,
+					content="5 0 5222 "+jabberalias,
+					rtype='SRV',
+					ttl=3600
+					)
+				newSRV2 = PDNSRecord(
+					domain=newdomain,
+					name="_xmpp-server._tcp."+newdomain,
+					content="5 0 5269 "+jabberalias,
+					rtype='SRV',
+					ttl=3600
+					)
+				sess.add(newCNAMExmpp)
+				sess.add(newSRV1)
+				sess.add(newSRV2)
 
 			sess.flush()
 			
