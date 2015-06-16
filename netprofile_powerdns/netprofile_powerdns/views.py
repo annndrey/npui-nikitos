@@ -176,33 +176,41 @@ def create_record(request):
 
 			ns1 = cfg.get('netprofile.client.pdns.ns1')
 			ns2 = cfg.get('netprofile.client.pdns.ns2')
-			newdomain = PDNSDomain(name=name, master='', dtype=domaintype, account=request.POST.get('user', None))
+			newdomain = PDNSDomain(
+				name=name, 
+				master='', 
+				dtype=domaintype, 
+				account=request.POST.get('user', None)
+				)
 			
-			newsoa = PDNSRecord()
-			newsoa.domain = newdomain
-			newsoa.name = name
-			newsoa.rtype = 'SOA'
-			newsoa.content = ns1
-			newsoa.ttl = 86400
+			newSOA = PDNSRecord(
+				domain = newdomain,
+				name = name,
+				rtype = 'SOA',
+				content = ns1,
+				ttl = 86400
+				)
 
-			newns1 = PDNSRecord()
-			newns1.domain = newdomain
-			newns1.name = name
-			newns1.rtype = 'NS'
-			newns1.content = ns1
-			newns1.ttl = 86400
+			newNS1 = PDNSRecord(
+				domain = newdomain,
+				name = name,
+				rtype = 'NS',
+				content = ns1,
+				ttl = 86400
+				)
 
-			newns2 = PDNSRecord()
-			newns2.domain = newdomain
-			newns2.name = name
-			newns2.rtype = 'NS'
-			newns2.content = ns2
-			newns2.ttl = 86400
+			newNS2 = PDNSRecord(
+				domain = newdomain,
+				name = name,
+				rtype = 'NS',
+				content = ns2,
+				ttl = 86400
+				)
 
 			sess.add(newdomain)
-			sess.add(newsoa)
-			sess.add(newns1)
-			sess.add(newns2)
+			sess.add(newSOA)
+			sess.add(newNS1)
+			sess.add(newNS2)
 
 			# select between service types here
 			if rectype in ['domain', 'mailserver', 'jabber']:
@@ -215,18 +223,18 @@ def create_record(request):
 					)
 				sess.add(newA)
 
-			elif rectype == 'mailserver':
-				mailalias = 'mail.'+newdomain
+			if rectype == 'mailserver':
+				mailalias = 'mail.'+newdomain.name
 				newCNAME = PDNSRecord(
 					domain=newdomain,
 					name=mailalias,
-					content=newdomain,
+					content=newdomain.name,
 					rtype='CNAME',
 					ttl=3600
 					)
 				newMX = PDNSRecord(
 					domain=newdomain,
-					name=newdomain,
+					name=newdomain.name,
 					content=mailalias,
 					rtype='MX',
 					ttl=3600
@@ -235,24 +243,24 @@ def create_record(request):
 				sess.add(newMX)
 
 			elif rectype == 'jabber':
-				jabberalias = 'jabber.'+newdomain
+				jabberalias = 'jabber.'+newdomain.name
 				newCNAMExmpp = PDNSRecord(
 					domain=newdomain,
 					name=jabberalias,
-					content=newdomain,
+					content=newdomain.name,
 					rtype='CNAME',
 					ttl=3600
 					)
 				newSRV1 = PDNSRecord(
 					domain=newdomain,
-					name="_xmpp-client._tcp." + newdomain,
+					name="_xmpp-client._tcp." + newdomain.name,
 					content="5 0 5222 "+jabberalias,
 					rtype='SRV',
 					ttl=3600
 					)
 				newSRV2 = PDNSRecord(
 					domain=newdomain,
-					name="_xmpp-server._tcp."+newdomain,
+					name="_xmpp-server._tcp."+newdomain.name,
 					content="5 0 5269 "+jabberalias,
 					rtype='SRV',
 					ttl=3600

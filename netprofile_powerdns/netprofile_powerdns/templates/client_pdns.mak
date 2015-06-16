@@ -48,7 +48,7 @@
 	    <span class="glyphicon glyphicon-th-list"></span> <strong>${d}</strong></a> 
 	    <a data-toggle="modal" data-target="#formModalDomainRecord${d.id}"><span class="glyphicon glyphicon-plus-sign"></span></a>
 	    <a data-toggle='modal' href='#modalEdit${d.id}'><span class="glyphicon glyphicon-pencil"</a> 
-	    <a data-toggle='modal' href='#modalDeleteDomain${d.id}'><span class="glyphicon glyphicon-remove"></a> 
+	    <a data-toggle='modal' href='#modalDeleteDomain${d.id}'><span class="glyphicon glyphicon-trash"></a> 
 	    <br>
 	  </div>
 	</div>
@@ -61,7 +61,7 @@
       		% if r.domain_id == d.id:
 		  ${r} 
 		  <a data-toggle='modal' href='#modalRecordEdit${r.id}'><span class="glyphicon glyphicon-pencil"></a> 
-		  <a data-toggle='modal' href='#modalDeleteRecord${r.id}'><span class="glyphicon glyphicon-remove"></a> 
+		  <a data-toggle='modal' href='#modalDeleteRecord${r.id}'><span class="glyphicon glyphicon-trash"></a> 
 		  <br>
 
 		  ## Domain record deletion form start
