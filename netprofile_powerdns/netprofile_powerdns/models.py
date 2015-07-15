@@ -52,6 +52,7 @@ from sqlalchemy.orm import (
 	backref,
 	relationship
 )
+from sqalchemy.schema import Table
 from sqlalchemy.dialects.mysql import TINYINT
 
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -83,6 +84,7 @@ from pyramid.i18n import (
 )
 
 _ = TranslationStringFactory('netprofile_powerdns')
+
 
 class PDNSRecordType(Base):
 	"""
@@ -156,13 +158,13 @@ class PDNSRecordType(Base):
 			}
 		)
 
-class PDNSServiceTemplate(Base):
+class PDNSTemplateName(Base):
 	"""
 	PowerDNS Service Template class
 	"""
-	__tablename__ = 'pdns_templates'
+	__tablename__ = 'pdns_templatenames'
 	__table_args__ = (
-		Comment('PowerDNS Templates'),
+		Comment('PowerDNS Template Names'),
 		{
 			'mysql_engine'  : 'InnoDB',
 			'mysql_charset' : 'utf8',
@@ -182,14 +184,14 @@ class PDNSServiceTemplate(Base):
 				),
 				'easy_search'   : ('name',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
-				'create_wizard' : SimpleWizard(title=_('Add new template'))
+				'create_wizard' : SimpleWizard(title=_('Add new template name'))
 			}
 		}
 	)
 	id = Column(
 		'id',
 		UInt32(),
-		Sequence('pdns_templates_templateid_seq'),
+		Sequence('pdns_templatenames_templateid_seq'),
 		Comment('Template ID'),
 		primary_key=True,
 		nullable=False,
@@ -217,18 +219,67 @@ class PDNSServiceTemplate(Base):
             'header_string' : _('Description')
         }
     )
+	fields = relationship('PDNSRecordType')
 
+#http://docs.sqlalchemy.org/en/rel_1_0/orm/basic_relationships.html#association-object
+#association table for template-record association or we can just make a common Base class with two foreign keys
+#PDNSTemplateRecord = Table(
+#	'templatestable',
+#	Base.metadata,
+#	template = Column(
+#		'templ_id', 
+#		UInt32(),
+#		ForeignKey('pdns_templates.id')
+#		)
+#	field = Column(
+#		'field_id',
+#		UInt32(),
+#		ForeignKey('pdns_recordtypes.id')
+#		)
+#	)
 
 class PDNSTemplateRecord(Base):
 	"""
-	PowerDNS Service Template Fields
+	PDNS Association table for both template and field types
 	"""
-	id
-	template_id (FK PDNSServiceTemplate.id)
-	field_id    (FK PDNSRecordType.id)
-	
-
-
+	__tablename__ = 'pdns_templates'
+	__table_args__ = (
+		Comment('PowerDNS Template-Field Association Table'),
+		{
+			'mysql_engine'  : 'InnoDB',
+			'mysql_charset' : 'utf8',
+			'info'          : {
+				'cap_menu'      : 'BASE_DOMAINS',
+				#'cap_read'      : 'DOMAINS_LIST',
+				#'cap_create'    : 'DOMAINS_CREATE',
+				#'cap_edit'      : 'DOMAINS_EDIT',
+				#'cap_delete'    : 'DOMAINS_DELETE',
+				'show_in_menu'  : 'admin',
+				'menu_name'     : _('PDNS Templates'),
+				'menu_order'    : 50,
+				'default_sort'  : ({ 'property': 'name' ,'direction': 'ASC' },),
+				'grid_view'     : ('name', 'defaultvalue'
+				),
+				'form_view'		: ('name', 'defaultvalue', 'descr'
+				),
+				'easy_search'   : ('name',),
+				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
+				'create_wizard' : SimpleWizard(title=_('Add new domain record type'))
+			}
+		}
+	)
+	template = Column(
+		'templ_id', 
+		UInt32(),
+		ForeignKey('pdns_templates.id')
+		)
+	field = Column(
+		'field_id',
+		UInt32(),
+		ForeignKey('pdns_recordtypes.id')
+		)
+	)
+	field = relationship("PDNSRecordType", backref='templates')
 
 #don't need it for now 
 class PDNSDomainType(DeclEnum):
