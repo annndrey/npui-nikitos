@@ -81,7 +81,9 @@ class Module(ModuleBase):
 			models.PDNSSupermaster,
 			models.PDNSTsigkey,
 			#models.PDNSDomainType,
-			models.PDNSRecordType
+			models.PDNSFieldType,
+			models.PDNSTemplateType,
+			models.PDNSTemplate
 		)
 
 	def get_css(self, request):
