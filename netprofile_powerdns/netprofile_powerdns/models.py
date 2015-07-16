@@ -160,6 +160,8 @@ class PDNSFieldType(Base):
 			'header_string' : _('Default Value')
 			}
 		)
+	def __str__(self):
+		return self.name
 
 
 class PDNSTemplateType(Base):
@@ -182,7 +184,7 @@ class PDNSTemplateType(Base):
 				'menu_name'     : _('PDNS Template Types'),
 				'menu_order'    : 50,
 				'default_sort'  : ({ 'property': 'name' ,'direction': 'ASC' },),
-				'grid_view'     : ('name', 
+				'grid_view'     : ('name', 'descr'
 				),
 				'form_view'		: ('name', 'descr'
 				),
@@ -224,6 +226,8 @@ class PDNSTemplateType(Base):
         }
     )
 	#fields = relationship('PDNSFieldType')
+	def __str__(self):
+		return self.name
 
 
 class PDNSTemplate(Base):
@@ -246,9 +250,9 @@ class PDNSTemplate(Base):
 				'show_in_menu'  : 'admin',
 				'menu_name'     : _('PDNS Templates'),
 				'menu_order'    : 50,
-				'grid_view'     : ('templateid', 'fieldid'
+				'grid_view'     : ('template', 'field'
 				),
-				'form_view'		: ('templateid', 'fieldid'
+				'form_view'		: ('template', 'field'
 				),
 				'easy_search'   : ('template',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
@@ -259,15 +263,21 @@ class PDNSTemplate(Base):
 	templateid = Column(
 		'templ_id', 
 		UInt32(),
-		ForeignKey('pdns_templatetypes.id')
+		ForeignKey('pdns_templatetypes.id'),
+		info={
+			'header_string' : _('Template')
+			}
 		)
 	fieldid = Column(
 		'field_id',
 		UInt32(),
-		ForeignKey('pdns_recordtypes.id')
+		ForeignKey('pdns_recordtypes.id'),
+		info={
+			'header_string' : _('Field')
+			}
 		)
-
-	field = relationship("PDNSFieldType", backref='templates')
+	template = relationship("PDNSTemplateType")
+	field = relationship("PDNSFieldType")
 
 #don't need it for now 
 class PDNSDomainType(DeclEnum):
