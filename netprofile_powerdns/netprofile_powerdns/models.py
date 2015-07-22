@@ -36,6 +36,7 @@ __all__ = [
 ]
 
 import datetime
+import json
 
 from sqlalchemy import (
 	Column,
@@ -59,8 +60,9 @@ from sqlalchemy.orm import (
 from sqlalchemy.dialects.mysql import TINYINT
 
 from sqlalchemy.ext.associationproxy import association_proxy
+from pyramid.threadlocal import get_current_registry
 
-from netprofile.db.connection import Base
+from netprofile.db.connection import Base, DBSession
 from netprofile.db.fields import (
 	ASCIIString,
 	ASCIIText,
@@ -75,11 +77,13 @@ from netprofile.db.fields import (
 from netprofile.db.ddl import Comment
 from netprofile.tpl import TemplateObject
 from netprofile.ext.columns import MarkupColumn
+from netprofile.common.hooks import register_hook
 from netprofile.ext.wizards import (
 	SimpleWizard,
 	Step,
 	Wizard
 )
+from netprofile.ext.data import ExtModel
 
 from pyramid.i18n import (
 	TranslationStringFactory,
@@ -87,6 +91,85 @@ from pyramid.i18n import (
 )
 
 _ = TranslationStringFactory('netprofile_powerdns')
+
+@register_hook('np.wizard.init.powerdns.PDNSTemplate')
+def _wizcb_pdnstemplate_submit(wiz, step, act, val, req):
+	sess = DBSession()
+	cfg = get_current_registry().settings
+
+	fieldIDs = json.loads(val['field_id'])
+	fieldlist = val['field']
+	templateName = val['template']
+	templId = val['templ_id']
+	print(val)
+	for fid in fieldIDs:
+		resvalue = {'templ_id':templId, 'field_id':fid, 'template':templateName, 'field': sess.query(PDNSFieldType).filter(PDNSFieldType.id==fid).first()}
+		print("########################## SUBSCR ###########################")
+		em = ExtModel(PDNSTemplate)
+		obj = PDNSTemplate()
+		em.set_values(obj, resvalue, req, True)
+		sess.add(obj)
+		sess.flush()
+	#чтото не отображается ничего нормально
+	#correct respectively to pdns module
+	#for userid in userIDs:
+	#	resvalue = {'userid' : userid}
+	#	user = sess.query(AccessEntity).filter(AccessEntity.id==userid).first()
+	#	subscr = sess.query(MailingSubscription).filter(MailingSubscription.userid==userid).first()
+	#	print("########################## SUBSCR ###########################")
+	#	
+	#	#a long try-except statement to check if user is in mailing list
+	#	try:
+	#		if subscr.issubscribed is True:
+	#			templateBody = sess.query(MailingTemplate).filter(MailingTemplate.id==templId).first().body
+	#			resvalue['user'] = user
+	#			resvalue['template'] = templateBody
+	#			resvalue['templid'] = templId
+	#	
+	#			if user.parent:
+	#				try:
+	#					receiver = user.parent.email
+	#				except AttributeError:
+	#					print("################### USER'S PARENT HAVE NO EMAIL ATTRIBUTE #######################")
+	#
+	#			if receiver is not None:
+	#				msg_text = Attachment(data=templateBody,
+	#									  content_type='text/plain; charset=\'utf-8\'',
+	#									  disposition='inline',
+	#									  transfer_encoding='quoted-printable'
+	#									  )
+	#				msg_html = Attachment(data=templateBody,
+	#									  content_type='text/html; charset=\'utf-8\'',
+	#									  disposition='inline',
+	#									  transfer_encoding='quoted-printable'
+	#									  )
+	#				message = Message(
+	#					subject=(templateName),
+	#					sender=sender,
+	#					recipients=(receiver,),
+	#					body=msg_text,
+	#					html=msg_html
+	#					)
+
+	#				mailer.send(message)
+	#				resvalue['letteruid'] = hashlib.md5((templateBody + user.nick + str(datetime.datetime.now())).encode()).hexdigest()
+	#				em = ExtModel(MailingLog)
+	#				obj = MailingLog()
+	#				em.set_values(obj, resvalue, req, True)
+	#				sess.add(obj)
+	#				sess.flush()
+	#			else:
+	#				print("################### USER HAVE NO EMAIL #######################")
+
+	#	except AttributeError:
+	#		print("########################## USER NOT IN SUBSCR LIST ###########################")
+
+	return {
+		'do'     : 'close',
+		'reload' : True
+		}
+
+
 
 class PDNSFieldType(Base):
 	"""
@@ -236,7 +319,6 @@ class PDNSTemplate(Base):
 	"""
 	__tablename__ = 'pdns_templates'
 	__table_args__ = (
-		PrimaryKeyConstraint('templ_id', 'field_id'),
 		Comment('PowerDNS Template-Field Association Table'),
 		{
 			'mysql_engine'  : 'InnoDB',
@@ -256,8 +338,25 @@ class PDNSTemplate(Base):
 				),
 				'easy_search'   : ('template',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
-				'create_wizard' : SimpleWizard(title=_('Add new template'))
+				'create_wizard' : Wizard(
+					Step(
+						'template', 'field',
+						id='generic', title=_('Add new template'),
+						on_submit=_wizcb_pdnstemplate_submit
+						)
+					)
+				}
 			}
+		)
+	id = Column(
+		'relationid',
+		UInt32(),
+		Sequence('pdns_templates_relationid_seq'),
+		Comment('ID'),
+		primary_key=True,
+		nullable=False,
+		info={
+			'header_string' : _('ID')
 		}
 	)
 	templateid = Column(
@@ -273,11 +372,17 @@ class PDNSTemplate(Base):
 		UInt32(),
 		ForeignKey('pdns_recordtypes.id'),
 		info={
-			'header_string' : _('Field')
+			'header_string' : _('Record'),
+			'editor_xtype'  : 'multimodelselect'
 			}
 		)
+
 	template = relationship("PDNSTemplateType")
 	field = relationship("PDNSFieldType")
+
+	def __str__(self):
+		return '%s:%s' % (self.template.name, self.field.name)
+ 
 
 #don't need it for now 
 class PDNSDomainType(DeclEnum):
