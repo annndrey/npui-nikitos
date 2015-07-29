@@ -104,65 +104,11 @@ def _wizcb_pdnstemplate_submit(wiz, step, act, val, req):
 	print(val)
 	for fid in fieldIDs:
 		resvalue = {'templ_id':templId, 'field_id':fid, 'template':templateName, 'field': sess.query(PDNSFieldType).filter(PDNSFieldType.id==fid).first()}
-		print("########################## SUBSCR ###########################")
 		em = ExtModel(PDNSTemplate)
 		obj = PDNSTemplate()
 		em.set_values(obj, resvalue, req, True)
 		sess.add(obj)
 		sess.flush()
-	#чтото не отображается ничего нормально
-	#correct respectively to pdns module
-	#for userid in userIDs:
-	#	resvalue = {'userid' : userid}
-	#	user = sess.query(AccessEntity).filter(AccessEntity.id==userid).first()
-	#	subscr = sess.query(MailingSubscription).filter(MailingSubscription.userid==userid).first()
-	#	print("########################## SUBSCR ###########################")
-	#	
-	#	#a long try-except statement to check if user is in mailing list
-	#	try:
-	#		if subscr.issubscribed is True:
-	#			templateBody = sess.query(MailingTemplate).filter(MailingTemplate.id==templId).first().body
-	#			resvalue['user'] = user
-	#			resvalue['template'] = templateBody
-	#			resvalue['templid'] = templId
-	#	
-	#			if user.parent:
-	#				try:
-	#					receiver = user.parent.email
-	#				except AttributeError:
-	#					print("################### USER'S PARENT HAVE NO EMAIL ATTRIBUTE #######################")
-	#
-	#			if receiver is not None:
-	#				msg_text = Attachment(data=templateBody,
-	#									  content_type='text/plain; charset=\'utf-8\'',
-	#									  disposition='inline',
-	#									  transfer_encoding='quoted-printable'
-	#									  )
-	#				msg_html = Attachment(data=templateBody,
-	#									  content_type='text/html; charset=\'utf-8\'',
-	#									  disposition='inline',
-	#									  transfer_encoding='quoted-printable'
-	#									  )
-	#				message = Message(
-	#					subject=(templateName),
-	#					sender=sender,
-	#					recipients=(receiver,),
-	#					body=msg_text,
-	#					html=msg_html
-	#					)
-
-	#				mailer.send(message)
-	#				resvalue['letteruid'] = hashlib.md5((templateBody + user.nick + str(datetime.datetime.now())).encode()).hexdigest()
-	#				em = ExtModel(MailingLog)
-	#				obj = MailingLog()
-	#				em.set_values(obj, resvalue, req, True)
-	#				sess.add(obj)
-	#				sess.flush()
-	#			else:
-	#				print("################### USER HAVE NO EMAIL #######################")
-
-	#	except AttributeError:
-	#		print("########################## USER NOT IN SUBSCR LIST ###########################")
 
 	return {
 		'do'     : 'close',
@@ -308,7 +254,8 @@ class PDNSTemplateType(Base):
             'header_string' : _('Description')
         }
     )
-	#fields = relationship('PDNSFieldType')
+	fields = association_proxy('template_fields', 'field')#relationship('PDNSFieldType')
+	
 	def __str__(self):
 		return self.name
 
@@ -377,7 +324,7 @@ class PDNSTemplate(Base):
 			}
 		)
 
-	template = relationship("PDNSTemplateType")
+	template = relationship("PDNSTemplateType", backref=backref('template_fields', cascade="all, delete-orphan"))
 	field = relationship("PDNSFieldType")
 
 	def __str__(self):

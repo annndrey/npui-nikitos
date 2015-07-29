@@ -3,30 +3,35 @@
 
 
 ## Domain creation + create from template button
+## here we should create dynamic buttons, from the data, passed to the template
+## for the first button we take the first element from templates list  
   <div class="btn-group pull-right"> 
-    <button class="btn btn-primary" data-toggle="modal" data-target="#formModalDomain">
+    <button class="btn btn-primary" data-toggle="modal" data-target="#formModal${templates[0].name.capitalize()}">
       <span class="glyphicon glyphicon-plus"></span>
-      ${loc.translate(_("Create domain"))}
+      ${loc.translate(_("Create "+templates[0].name))}
     </button>
+
     <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
       <span class="caret"></span>
       <span class="sr-only">${loc.translate(_("More options..."))}</span>
     </button>
     <ul class="dropdown-menu" role="menu">
-      ## service templates 
-      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalDomain">${loc.translate(_("Create domain"))}</button></li>
-      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalMailServer">${loc.translate(_("Create mail server"))}</button></li>
-      <li><button class="btn btn-link" data-toggle="modal" data-target="#formModalJabber">${loc.translate(_("Create jabber server"))}</button></li>
-      ## add new services here 
-      ##<li class="divider"></li>
-      ##<li><a href="#">Somegthing else...</a></li>
+      ## services templates 
+      % for t in templates:
+        <li><button class="btn btn-link" data-toggle="modal" data-target="#formModal${t.name.capitalize()}">${loc.translate(_("Create "+t.name))}</button></li>
+        ##<li><a href="#">Somegthing else...</a></li>
+      % endfor
     </ul>
   </div>
-
-
 ## domain creation + create from template button end 
 
-
+##% for t in templates:
+## <p> ${t.name}
+##  % for f in t.template_fields:
+##    ${f.field}
+## </p>
+##  % endfor  
+##% endfor
 
   <h1>${loc.translate(_("My domains"))}</h1>
 
@@ -290,6 +295,6 @@
     
     % endif
   
-  ## put new services here  
+  ##  services forms are here  
   <%include file="netprofile_powerdns:templates/services_templates_pdns.mak"/>
   </div>

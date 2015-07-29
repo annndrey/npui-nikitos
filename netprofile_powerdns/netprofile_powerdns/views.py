@@ -47,7 +47,7 @@ from netprofile.db.connection import DBSession
 
 from netprofile_access.models import AccessEntity
 
-from .models import UserDomain, PDNSDomain, PDNSRecord
+from .models import UserDomain, PDNSDomain, PDNSRecord, PDNSTemplateType, PDNSTemplate, PDNSFieldType
 
 _ = TranslationStringFactory('netprofile_powerdns')
 
@@ -150,6 +150,8 @@ def create_record(request):
 				})
 		return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
 	else:
+		#!!!!!!!!!!!!!!!!!! REMOVE HARDCODING HERE!
+		#get fields related to obtained type and create corresponding fields
 		rectype = request.POST.get('type', None)
 		if rectype != "record":
 			name = request.POST.get('hostName', None)
@@ -304,6 +306,8 @@ def list_domains(request):
 					'class' : 'danger'
 					})
 			return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
+	#Get all the templates with associated fields
+	templates = sess.query(PDNSTemplateType).join(PDNSTemplate).all()
 
 	access_user = sess.query(AccessEntity).filter_by(nick=str(request.user)).first()
 	user_domains = sess.query(PDNSDomain).filter_by(account=str(request.user))
@@ -321,7 +325,8 @@ def list_domains(request):
 			'accessuser':access_user,
 			'userdomains':user_domains,
 			'domainrecords':records,
-			'domain':None
+			'domain':None,
+			'templates':templates
 			})
 		
 	return tpldef
