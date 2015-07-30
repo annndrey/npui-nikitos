@@ -279,9 +279,9 @@ class PDNSTemplate(Base):
 				'show_in_menu'  : 'admin',
 				'menu_name'     : _('PDNS Templates'),
 				'menu_order'    : 50,
-				'grid_view'     : ('template', 'field'
+				'grid_view'     : ('template', 'field', 'defaultvalues'
 				),
-				'form_view'		: ('template', 'field'
+				'form_view'		: ('template', 'field', 'defaultvalues'
 				),
 				'easy_search'   : ('template',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
@@ -323,12 +323,21 @@ class PDNSTemplate(Base):
 			'editor_xtype'  : 'multimodelselect'
 			}
 		)
-
+	defaultvalues = Column(
+		'defvalues',
+		Unicode(255),
+		Comment('Default Values'),
+		nullable=True,
+		default=None,
+		info={
+			'header_string' : _('Default Values')
+		}
+	)
 	template = relationship("PDNSTemplateType", backref=backref('template_fields', cascade="all, delete-orphan"))
 	field = relationship("PDNSFieldType")
 
 	def __str__(self):
-		return '%s:%s' % (self.template.name, self.field.name)
+		return '%s %s Record' % (self.template.name, self.field.name)
  
 
 #don't need it for now 
