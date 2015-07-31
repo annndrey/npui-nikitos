@@ -168,7 +168,7 @@ def create_record(request):
 					.scalar()
 			if domain_clash > 0:
 				request.session.flash({
-					'text' : loc.translate(_('Domain already exists')),
+					'text' : loc.translate(_('Domain already exists, please add corresponding records manually')),
 					'class' : 'danger'
 					})
 				return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
@@ -216,17 +216,16 @@ def create_record(request):
 			#also if we have a simple domain what will happen if we decide to add a mailserver to it, for example??
 			service_template = sess.query(PDNSTemplateType).filter(PDNSTemplateType.name==rectype).join(PDNSTemplate).all()
 			
-			print("#"*80)
-
+			#default values are stored as JSON in the database
+			#if default value is a key of a dictionnary, lookup it's value in the currentvalues dict
+			#else it is a complex value with prefix and value from currentvalues dict, as in jabber contents field
+			#some examples:
+			#Domain NS Record: {"ttl":"86400",  "content":"nameserver2"}
+			#Mailserver CNAME Record: {"ttl":"3600",  "prefix":"mail", "content":"name"}
+			#Jabber SRV Record: {"ttl":"3600",  "prefix":"_xmpp-client._tcp", "content":["5 0 5222 jabber", "name"]}
 			for t in service_template:
 				for f in t.template_fields:
-					print("CREATE NEW RECORD", f.field.name, f.defaultvalues)
 					defvalues = json.loads(f.defaultvalues)
-					#currentvalues['rtype'] = f.field.name
-					#modify currentvalues with field default values here.
-					print("CURRENTVALUES", currentvalues)
-					print("DEFVALUES", defvalues)
-					#DONE
 					newname = currentvalues['name']
 					if 'prefix' in defvalues.keys():
 						newname = "{0}.{1}".format(defvalues['prefix'], newname)
