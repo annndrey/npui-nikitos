@@ -158,6 +158,7 @@
 		  
 		% endif
 	      % endfor
+              <a data-toggle="modal" data-target="#formModalDomainRecord${d.id}"><span class="glyphicon glyphicon-plus-sign">Add new record</a>
 	    % else:
       	      There's no records for this domain yet. <a data-toggle="modal" data-target="#formModalDomainRecord${d.id}"><span class="glyphicon glyphicon-plus-sign">Add one?</a>
 	    % endif  		
@@ -246,7 +247,7 @@
 	    <div class="modal-header">
 	      
 	      <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-	      <h4 class="modal-title" id="formModalDomainRecordLabel">${loc.translate(_("New DNS record"))}</h4>
+	      <h4 class="modal-title" id="formModalDomainRecordLabel">${loc.translate(_("New DNS record for "))}${d}</h4>
 	      
 	    </div>
 	    <div class="modal-body">

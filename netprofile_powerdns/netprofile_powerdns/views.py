@@ -27,6 +27,8 @@ from __future__ import (
 	division
 )
 
+import json
+
 from pyramid.i18n import (
 	TranslationStringFactory,
 	get_localizer
@@ -150,12 +152,14 @@ def create_record(request):
 				})
 		return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
 	else:
-		#!!!!!!!!!!!!!!!!!! REMOVE HARDCODING HERE!
 		#get fields related to obtained type and create corresponding fields
 		rectype = request.POST.get('type', None)
 		if rectype != "record":
 			#so we are creating some service, domain, mailserver, etc
+			currentvalues = {}
 			hostname = request.POST.get('hostName', None)
+			currentvalues['name'] = hostname
+			
 			#check if we already have such domain name,
 			#if so, return a warning
 			domain_clash = sess.query(func.count('*'))\
@@ -170,7 +174,6 @@ def create_record(request):
 				return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
 			#if no same domain name warinigs returned, we can continue processing our data
 			#host record
-			
 
 			domaintype = request.POST.get('hosttype', 'NATIVE')
 			domainip = request.POST.get('hostValue', None)
@@ -181,138 +184,84 @@ def create_record(request):
 						'class' : 'danger'
 						})
 				return HTTPSeeOther(location=request.route_url('pdns.cl.domains'))
+			currentvalues['domainip'] = domainip
+			
 			#get the nameservers from the config
 			ns1 = cfg.get('netprofile.client.pdns.ns1')
 			ns2 = cfg.get('netprofile.client.pdns.ns2')
 
+			currentvalues['nameserver1'] = ns1
+			currentvalues['nameserver2'] = ns2
+
+			currentvalues['ttl'] = 3600
+			currentvalues['prefix'] = ''
+			currentvalues['name'] = hostname
 			#and here we create our something. 
 			#as we have new service type, rectype, we can get all related fields
 
 			#first we create new domain
 
-#			newdomain = PDNSDomain(
-#				name=hostname, 
-#				master='', 
-#				dtype=domaintype, 
-#				account=request.POST.get('user', None)
-#				)
-#			sess.add(newdomain)
+			newdomain = PDNSDomain(
+				name=hostname, 
+				master='', 
+				dtype=domaintype, 
+				account=request.POST.get('user', None)
+				)
+			sess.add(newdomain)
 
 			#and then the records for this domain, according to the record type
+			#IT WORKS!
+			#WORKING HERE
+			#Now we should revise what kind of fields should we create for every service
+			#also if we have a simple domain what will happen if we decide to add a mailserver to it, for example??
 			service_template = sess.query(PDNSTemplateType).filter(PDNSTemplateType.name==rectype).join(PDNSTemplate).all()
-			#DEFAULT VALUES SHOULD BE KEPT IN ASSOC.TABLE
-			#before creating records we should create a dict with some values to be taken with keys obtained from DB default values.
-			#next tme look at def values and make it work
+			
 			print("#"*80)
+
 			for t in service_template:
 				for f in t.template_fields:
-					print("CREATE NEW RECORD", f.field)
+					print("CREATE NEW RECORD", f.field.name, f.defaultvalues)
+					defvalues = json.loads(f.defaultvalues)
+					#currentvalues['rtype'] = f.field.name
+					#modify currentvalues with field default values here.
+					print("CURRENTVALUES", currentvalues)
+					print("DEFVALUES", defvalues)
+					#DONE
+					newname = currentvalues['name']
+					if 'prefix' in defvalues.keys():
+						newname = "{0}.{1}".format(defvalues['prefix'], newname)
+					newrtype = f.field.name
+					
+					#DONE
+					defcontent = defvalues.get('content', None)
+					if defcontent:
+						if not isinstance(defcontent, list):
+							newcontent = currentvalues.get(defcontent, None)
+						else:
+							def_in_cur = [defcontent.index(k) for k in filter(lambda x: x in defcontent, currentvalues.keys())]
+							for i in def_in_cur:
+								defcontent[i] = currentvalues[defcontent[i]]
+							newcontent =".".join(defcontent)
+					else:
+						newcontent = ''
+					#DONE
+					newttl = int(defvalues.get('ttl', 3600))
+
 					newRecord = PDNSRecord(
 						domain = newdomain,
-						name = newdomain.name,#changing, CNAME - 'mail.'+newdomain.name, 'jabber.'+newdomain.name, "_xmpp-client._tcp."+newdomain.name, "_xmpp-server._tcp."+newdomain.name
-						rtype = f.field.name,
-						content = '',#ch ns1, ns2, domainip, newdomain.name, mailalias, "5 0 5222 "+jabberalias, "5 0 5269 "+jabberalias
-						ttl = ''#ch 86400, 3600,
-						)
+						name = newname,
+						rtype = newrtype,
+						content = newcontent,
+						ttl = newttl,
+					)
 					sess.add(newRecord)
-			print("#"*80)
-#			
-#			
-#			newSOA = PDNSRecord(
-#				domain = newdomain,
-#				name = hostname,
-#				rtype = 'SOA',
-#				content = ns1,
-#				ttl = 86400
-#				)
-#
-#			newNS1 = PDNSRecord(
-#				domain = newdomain,
-#				name = hostname,
-#				rtype = 'NS',
-#				content = ns1,
-#				ttl = 86400
-#				)
-#
-#			newNS2 = PDNSRecord(
-#				domain = newdomain,
-#				name = hostname,
-#				rtype = 'NS',
-#				content = ns2,
-#				ttl = 86400
-#				)
-#
-
-#			sess.add(newSOA)
-#			sess.add(newNS1)
-#			sess.add(newNS2)
-#
-#			# select between service types here
-#			if rectype in ['domain', 'mailserver', 'jabber']:
-#				newA = PDNSRecord(
-#					domain=newdomain,
-#					name=hostname,
-#					content=domainip,
-#					rtype='A',
-#					ttl=3600
-#					)
-#				sess.add(newA)
-#
-#			if rectype == 'mailserver':
-#				mailalias = 'mail.'+newdomain.name
-#				newCNAME = PDNSRecord(
-#					domain=newdomain,
-#					name=mailalias,
-#					content=newdomain.name,
-#					rtype='CNAME',
-#					ttl=3600
-#					)
-#				newMX = PDNSRecord(
-#					domain=newdomain,
-#					name=newdomain.name,
-#					content=mailalias,
-#					rtype='MX',
-#					ttl=3600
-#					)
-#				sess.add(newCNAME)
-#				sess.add(newMX)
-#
-#			elif rectype == 'jabber':
-#				jabberalias = 'jabber.'+newdomain.name
-#				newCNAMExmpp = PDNSRecord(
-#					domain=newdomain,
-#					name=jabberalias,
-#					content=newdomain.name,
-#					rtype='CNAME',
-#					ttl=3600
-#					)
-#				newSRV1 = PDNSRecord(
-#					domain=newdomain,
-#					name="_xmpp-client._tcp." + newdomain.name,
-#					content="5 0 5222 "+jabberalias,
-#					rtype='SRV',
-#					ttl=3600
-#					)
-#				newSRV2 = PDNSRecord(
-#					domain=newdomain,
-#					name="_xmpp-server._tcp."+newdomain.name,
-#					content="5 0 5269 "+jabberalias,
-#					rtype='SRV',
-#					ttl=3600
-#					)
-#
-#				sess.add(newCNAMExmpp)
-#				sess.add(newSRV1)
-#				sess.add(newSRV2)
-#
-#			sess.flush()
-#			
-#		elif rectype == "record":
-#			ttl = None if request.POST.get('ttl', None) == '' else request.POST.get('ttl', None);
-#			prio = None if request.POST.get('prio', None) == '' else request.POST.get('prio', None);
-#			newrecord = PDNSRecord(domain_id=int(request.POST.get('domainid', None)), name=request.POST.get('name', None), rtype=request.POST.get('rtype', None), content=request.POST.get('content', None), ttl=ttl, prio=prio)
-#			sess.add(newrecord)
-#			sess.flush()
+					sess.flush()
+		elif rectype == "record":
+			ttl = None if request.POST.get('ttl', None) == '' else request.POST.get('ttl', None);
+			prio = None if request.POST.get('prio', None) == '' else request.POST.get('prio', None);
+			newrecord = PDNSRecord(domain_id=int(request.POST.get('domainid', None)), name=request.POST.get('name', None), rtype=request.POST.get('rtype', None), content=request.POST.get('content', None), ttl=ttl, prio=prio)
+			sess.add(newrecord)
+			sess.flush()
 		
 	return HTTPSeeOther(location=request.route_url('pdns.cl.domains', _query=(('created', 1),)))
 
