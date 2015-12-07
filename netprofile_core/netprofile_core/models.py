@@ -29,11 +29,13 @@ from __future__ import (
 
 __all__ = [
 	'NPModule',
+	'NPVariable',
 	'AddressType',
 	'PhoneType',
 	'ContactInfoType',
 	'UserState',
 	'User',
+	'UserCard',
 	'Group',
 	'Privilege',
 	'Capability',
@@ -62,9 +64,12 @@ __all__ = [
 	'UserSetting',
 	'DataCache',
 	'DAVLock',
+	'DAVHistory',
 	'Calendar',
 	'CalendarImport',
 	'Event',
+	'AddressBook',
+	'AddressBookCard',
 	'CommunicationType',
 	'UserCommunicationChannel',
 	'UserPhone',
@@ -88,9 +93,9 @@ import datetime as dt
 import urllib
 import itertools
 import base64
-import icalendar
 
 from collections import defaultdict
+from dateutil.tz import tzutc
 
 from sqlalchemy import (
 	BINARY,
@@ -106,6 +111,7 @@ from sqlalchemy import (
 	UnicodeText,
 	event,
 	func,
+	inspect,
 	text,
 	or_,
 	and_
@@ -127,13 +133,12 @@ from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import NoResultFound
 
 from netprofile import (
+	BASE_VERSION,
 	PY3,
-	inst_id
+	inst_id,
+	vobject
 )
-from netprofile.common import (
-	ipaddr,
-	cal
-)
+from netprofile.common import ipaddr
 from netprofile.common.phps import HybridPickler
 from netprofile.common.threadlocal import magic
 from netprofile.common.cache import cache
@@ -147,6 +152,7 @@ from netprofile.db.fields import (
 	DeclEnum,
 	ExactUnicode,
 	Int8,
+	Int64,
 	IPv4Address,
 	IPv6Address,
 	LargeBLOB,
@@ -154,6 +160,7 @@ from netprofile.db.fields import (
 	UInt8,
 	UInt16,
 	UInt32,
+	UInt64,
 	npbool
 )
 from netprofile.ext.wizards import (
@@ -164,6 +171,8 @@ from netprofile.ext.wizards import (
 )
 from netprofile.ext.columns import MarkupColumn
 from netprofile.dav import (
+	IDAVAddressBook,
+	IDAVCard,
 	IDAVFile,
 	IDAVCollection,
 	IDAVPrincipal,
@@ -171,8 +180,12 @@ from netprofile.dav import (
 	DAVAllPropsSet,
 	DAVACEValue,
 	DAVACLValue,
+	DAVBinaryValue,
+	DAVHrefListValue,
+	DAVHrefValue,
 	DAVPrincipalValue,
 	DAVResourceTypeValue,
+	DAVSupportedAddressDataValue,
 
 	dprops
 )
@@ -386,6 +399,107 @@ class NPModule(Base):
 			'iconCls'  : 'ico-module'
 		}
 
+class NPVariable(Base):
+	"""
+	NetProfile global variable.
+	"""
+	__tablename__ = 'np_vars'
+	__table_args__ = (
+		Comment('NetProfile global variables'),
+		Index('np_vars_u_name', 'name', unique=True),
+		{
+			'mysql_engine'  : 'InnoDB',
+			'mysql_charset' : 'utf8',
+			'info'          : {
+				'cap_menu'     : 'BASE_ADMIN',
+				'cap_read'     : 'BASE_ADMIN',
+				'cap_create'   : 'BASE_ADMIN',
+				'cap_edit'     : 'BASE_ADMIN',
+				'cap_delete'   : 'BASE_ADMIN',
+
+				'show_in_menu' : 'admin',
+				'menu_name'    : _('System Variables'),
+				'default_sort' : ({ 'property': 'name' ,'direction': 'ASC' },),
+				'grid_view'    : ('varid', 'name', 'value_str', 'value_int'),
+				'grid_hidden'  : ('varid',),
+				'easy_search'  : ('name',)
+			}
+		}
+	)
+	_var_map = {}
+
+	id = Column(
+		'varid',
+		UInt32(),
+		Sequence('np_vars_varid_seq'),
+		Comment('Global variable ID'),
+		primary_key=True,
+		nullable=False,
+		info={
+			'header_string' : _('ID')
+		}
+	)
+	name = Column(
+		ASCIIString(255),
+		Comment('Global variable name'),
+		nullable=False,
+		default=None,
+		info={
+			'header_string' : _('Name'),
+			'column_flex'   : 1
+		}
+	)
+	string_value = Column(
+		'value_str',
+		ExactUnicode(255),
+		Comment('Global variable value - as string'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('String'),
+			'column_flex'   : 1
+		}
+	)
+	integer_value = Column(
+		'value_int',
+		Int64(),
+		Comment('Global variable value - as integer'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Integer'),
+			'column_flex'   : 1
+		}
+	)
+
+	def __str__(self):
+		return '%s' % str(self.name)
+
+	@classmethod
+	def __augment_query__(cls, sess, query, params, req):
+		query = query.with_for_update(read=True)
+		return query
+
+	@classmethod
+	def get_rw(cls, name):
+		# FIXME: thread safety
+		sess = DBSession()
+		var = cls._var_map.get(name)
+		if (var is None) or (var not in sess):
+			cls._var_map[name] = sess.query(cls).filter(cls.name == name).with_for_update().one()
+		return cls._var_map[name]
+
+	@classmethod
+	def get_ro(cls, name):
+		# FIXME: thread safety
+		sess = DBSession()
+		var = cls._var_map.get(name)
+		if (var is None) or (var not in sess):
+			cls._var_map[name] = sess.query(cls).filter(cls.name == name).with_for_update(read=True).one()
+		return cls._var_map[name]
+
 class AddressType(DeclEnum):
 	"""
 	Address type ENUM.
@@ -405,6 +519,20 @@ class AddressType(DeclEnum):
 		if data == AddressType.postal:
 			return ('postalAddress',)
 		return ()
+
+	@classmethod
+	def vcard_types(cls, data):
+		if data == AddressType.home:
+			return ('HOME',)
+		if data == AddressType.work:
+			return ('WORK',)
+		if data == AddressType.postal:
+			return ('POSTAL',)
+		if data == AddressType.parcel:
+			return ('PARCEL',)
+		if data == AddressType.billing:
+			return ('DOM',)
+		return ('OTHER',)
 
 class PhoneType(DeclEnum):
 	"""
@@ -455,6 +583,20 @@ class PhoneType(DeclEnum):
 		if data == PhoneType.rec:
 			return ('companyPhone',)
 		return ('otherPhone',)
+
+	@classmethod
+	def vcard_types(cls, data):
+		if data == PhoneType.home:
+			return ('VOICE', 'HOME')
+		if data == PhoneType.cell:
+			return ('VOICE', 'CELL')
+		if data == PhoneType.work:
+			return ('VOICE', 'WORK')
+		if data == PhoneType.pager:
+			return ('PAGER',)
+		if data == PhoneType.fax:
+			return ('FAX', 'WORK')
+		return ('VOICE', 'OTHER')
 
 class ContactInfoType(DeclEnum):
 	"""
@@ -890,6 +1032,12 @@ class User(Base):
 		cascade='all, delete-orphan',
 		passive_deletes=True
 	)
+	address_books = relationship(
+		'AddressBook',
+		backref=backref('user', innerjoin=True),
+		cascade='all, delete-orphan',
+		passive_deletes=True
+	)
 	comm_channels = relationship(
 		'UserCommunicationChannel',
 		backref=backref('user', innerjoin=True),
@@ -938,6 +1086,7 @@ class User(Base):
 	def __init__(self, **kwargs):
 		super(User, self).__init__(**kwargs)
 		self.vcard = None
+		self.mod_vcard = False
 		self.mod_pw = False
 
 	def __str__(self):
@@ -1270,21 +1419,18 @@ class User(Base):
 		return [ '', 'users', self.login ]
 
 	def dav_props(self, pset):
-		vcard = getattr(self, 'vcard', None)
-		if vcard is None:
-			self.vcard = self._get_vcard()
-
 		ret = {}
-		if dprops.RESOURCE_TYPE in pset:
-			ret[dprops.RESOURCE_TYPE] = DAVResourceTypeValue(dprops.PRINCIPAL)
-		if dprops.CONTENT_LENGTH in pset:
-			ret[dprops.CONTENT_LENGTH] = self.vcard.content_length
-		if dprops.CONTENT_TYPE in pset:
-			ret[dprops.CONTENT_TYPE] = 'text/x-vcard'
 		if dprops.DISPLAY_NAME in pset:
 			ret[dprops.DISPLAY_NAME] = self.login
-		if dprops.ETAG in pset:
-			ret[dprops.ETAG] = '"%s"' % self.vcard.etag
+		if dprops.PRINCIPAL_ADDRESS in pset:
+			ret[dprops.PRINCIPAL_ADDRESS] = DAVHrefValue(
+				'addressbooks/system/%s.vcf' % (self.login,),
+				prefix=True
+			)
+		if dprops.ADDRESS_BOOK_HOME_SET in pset:
+			ret[dprops.ADDRESS_BOOK_HOME_SET] = DAVHrefListValue((
+				'addressbooks/users/%s/' % (self.login,),
+			), prefix=True)
 		return ret
 
 	def dav_group_members(self, req):
@@ -1303,9 +1449,72 @@ class User(Base):
 			uris.append('mailto:' + str(email))
 		return uris
 
+	def dav_acl(self, req):
+		return DAVACLValue((DAVACEValue(
+			DAVPrincipalValue(DAVPrincipalValue.AUTHENTICATED),
+			grant=(dprops.ACL_READ, dprops.ACL_READ_ACL),
+			protected=True
+		),))
+
+	@property
+	def needs_dav_history(self):
+		attrs = inspect(self).attrs
+		attrnames = (
+			'login',
+		)
+		for aname in attrnames:
+			if getattr(attrs, aname).history.has_changes():
+				return True
+		return getattr(self, 'mod_vcard', False)
+
+	def get_dav_history(self, sess, token_value):
+		if self.login is None:
+			return ()
+		coll_id = 'PLUG:USERS'
+		if self in sess.deleted:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=self.login
+			),)
+		if self in sess.new:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=self.login
+			),)
+		attrs = inspect(self).attrs
+		name_hist = attrs.login.history
+		if name_hist.has_changes():
+			old_name = name_hist.non_added()[0]
+			new_name = name_hist.non_deleted()[0]
+
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=old_name
+			), DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=new_name
+			))
+		return (DAVHistory(
+			collection_id=coll_id,
+			change_id=token_value,
+			operation=DAVHistoryOp.modify,
+			uri=self.login
+		),)
+
 	def _get_vcard(self):
-		card = cal.Card()
-		card.add('VERSION', '3.0')
+		card = vobject.vCard()
+		card.add('version').value = '3.0'
+		card.add('prodid').value = '-//NetProfile//NetProfile DAV %s//EN' % (BASE_VERSION,)
+		# FIXME: track proper mtime
+		card.add('rev').value = dt.datetime.now(tz=tzutc()).replace(microsecond=0).isoformat()
 
 		fname = []
 		if self.name_family:
@@ -1317,18 +1526,43 @@ class User(Base):
 		if len(fname) == 0:
 			fname = (self.login,)
 		if self.id:
-			card.add('UID', icalendar.vUri('urn:npobj:user:%s:%u' % (
+			card.add('uid').value = 'urn:npobj:user:%s:%u' % (
 				inst_id,
 				self.id
-			)))
-		card.add('N', cal.vStructuredUnicode(*fname))
-		card.add('FN', cal.vUnicode(' '.join(fname)))
-		card.add('NICKNAME', cal.vUnicode(self.login))
+			)
+		card.add('n').value = vobject.vcard.Name(*fname)
+		card.add('fn').value = ' '.join(fname) if len(fname) else self.login
+		card.add('nickname').value = self.login
+		orgname = []
+		if self.organization:
+			orgname.append(self.organization)
+		if self.organizational_unit:
+			if len(orgname) == 0:
+				orgname.append('')
+			orgname.append(self.organizational_unit)
+		if len(orgname) > 0:
+			card.add('org').value = orgname
+		if self.title:
+			card.add('title').value = self.title
+		if self.description:
+			card.add('note').value = self.description
 		for email in self.email_addresses:
-			card.add('EMAIL', cal.vEMail(str(email)))
+			email.add_to_vcard(card)
+		for ph in self.phones:
+			ph.add_to_vcard(card)
+		if self.photo and (self.photo.plain_mime_type in ('image/jpeg',)):
+			photo = card.add('photo')
+			photo.encoded = True
+			photo.value = base64.b64encode(self.photo.get_data(sess=DBSession())).decode()
+			photo.encoding_param = 'B'
+			if self.photo.plain_mime_type == 'image/jpeg':
+				photo.type_param = 'JPEG'
+		req = getattr(self, '__req__', None)
+		if req:
+			req.run_hook('core.vcard.User', card, self, req)
 
-		ical = card.to_ical()
-		resp = Response(ical, content_type='text/x-vcard', charset='utf-8')
+		body = card.serialize().encode()
+		resp = Response(body, content_type='text/vcard', charset='utf-8')
 		if PY3:
 			resp.content_disposition = \
 				'attachment; filename*=UTF-8\'\'%s.vcf' % (
@@ -1340,19 +1574,14 @@ class User(Base):
 					urllib.quote(self.login.encode(), '')
 				)
 		ctx = hashlib.md5()
-		ctx.update(ical)
+		ctx.update(body)
 		resp.etag = ctx.hexdigest()
 		return resp
 
-	def dav_get(self, req):
-		vcard = getattr(self, 'vcard', None)
-		if vcard is None:
-			self.vcard = self._get_vcard()
-		return self.vcard
-
-	@validates('name_family', 'name_given', 'name_middle', 'login')
+	@validates('name_family', 'name_given', 'name_middle', 'login', 'organization', 'organizational_unit', 'title', 'description')
 	def _reset_vcard(self, k, v):
 		self.vcard = None
+		self.mod_vcard = True
 		return v
 
 	@classmethod
@@ -1362,6 +1591,24 @@ class User(Base):
 		for u in sess.query(User):
 			res[u.id] = str(u)
 		return res
+
+	@property
+	def sync_token(self):
+		try:
+			userst = NPVariable.get_ro('DAV:SYNC:PLUG:USERS')
+		except NoResultFound:
+			return 1
+		return userst.integer_value
+
+	@sync_token.setter
+	def sync_token(self, value):
+		try:
+			userst = NPVariable.get_rw('DAV:SYNC:PLUG:USERS')
+			userst.integer_value = value
+		except NoResultFound:
+			sess = DBSession()
+			userst = NPVariable(name='DAV:SYNC:PLUG:USERS', integer_value=value)
+			sess.add(userst)
 
 def _del_user(mapper, conn, tgt):
 	sess = DBSession()
@@ -1373,6 +1620,58 @@ def _del_user(mapper, conn, tgt):
 		.delete(synchronize_session=False)
 
 event.listen(User, 'after_delete', _del_user)
+
+@implementer(IDAVFile, IDAVCard)
+class UserCard(object):
+	"""
+	User's vCard object.
+	"""
+	def __init__(self, user, req):
+		self.user = user
+		self.req = req
+
+	@property
+	def __name__(self):
+		return '%s.vcf' % (self.user.login,)
+
+	def __str__(self):
+		return self.__name__
+
+	def get_uri(self):
+		return [ '', 'addressbooks', 'system', self.user.login ]
+
+	def dav_props(self, pset):
+		user = self.user
+		vcard = getattr(user, 'vcard', None)
+		if vcard is None:
+			user.vcard = user._get_vcard()
+
+		ret = {}
+		if dprops.CONTENT_LENGTH in pset:
+			ret[dprops.CONTENT_LENGTH] = user.vcard.content_length
+		if dprops.CONTENT_TYPE in pset:
+			ret[dprops.CONTENT_TYPE] = 'text/vcard'
+		if dprops.DISPLAY_NAME in pset:
+			ret[dprops.DISPLAY_NAME] = self.__name__
+		if dprops.ETAG in pset:
+			ret[dprops.ETAG] = '"%s"' % user.vcard.etag
+		if dprops.ADDRESS_DATA in pset:
+			ret[dprops.ADDRESS_DATA] = DAVBinaryValue(user.vcard.body)
+		return ret
+
+	def dav_acl(self, req):
+		return DAVACLValue((DAVACEValue(
+			DAVPrincipalValue(DAVPrincipalValue.AUTHENTICATED),
+			grant=(dprops.ACL_READ, dprops.ACL_READ_ACL),
+			protected=True
+		),))
+
+	def dav_get(self, req):
+		user = self.user
+		vcard = getattr(user, 'vcard', None)
+		if vcard is None:
+			user.vcard = user._get_vcard()
+		return user.vcard
 
 @implementer(IDAVFile, IDAVPrincipal)
 class Group(Base):
@@ -1544,8 +1843,12 @@ class Group(Base):
 	)
 	calendars = relationship(
 		'Calendar',
-		backref=backref('group', innerjoin=True),
-		cascade='all, delete-orphan',
+		backref='group',
+		passive_deletes=True
+	)
+	address_books = relationship(
+		'AddressBook',
+		backref='group',
 		passive_deletes=True
 	)
 
@@ -1622,13 +1925,16 @@ class Group(Base):
 
 	def dav_props(self, pset):
 		ret = {}
-		if dprops.RESOURCE_TYPE in pset:
-			ret[dprops.RESOURCE_TYPE] = DAVResourceTypeValue(dprops.PRINCIPAL)
-		if dprops.CONTENT_TYPE in pset:
-			ret[dprops.CONTENT_TYPE] = 'text/x-vcard'
 		if dprops.DISPLAY_NAME in pset:
 			ret[dprops.DISPLAY_NAME] = self.name
 		return ret
+
+	def dav_acl(self, req):
+		return DAVACLValue((DAVACEValue(
+			DAVPrincipalValue(DAVPrincipalValue.AUTHENTICATED),
+			grant=(dprops.ACL_READ, dprops.ACL_READ_ACL),
+			protected=True
+		),))
 
 	def dav_group_members(self, req):
 		gmset = set()
@@ -2568,6 +2874,9 @@ class SecurityPolicy(Base):
 	def check_password_age(self, req, user, npsess, ts):
 		last_pwh = user.last_password_change
 		if last_pwh:
+			if self.pw_age_max is None:
+				req.session['sess.pwage'] = 'ok'
+				return True
 			days = (ts - last_pwh.timestamp).days
 			if days > self.pw_age_max:
 				if self.pw_age_action == SecurityPolicyOnExpire.drop:
@@ -2583,7 +2892,12 @@ class SecurityPolicy(Base):
 			else:
 				req.session['sess.pwage'] = 'ok'
 		else:
-			req.session['sess.pwage'] = 'ok'
+			if self.pw_age_action == SecurityPolicyOnExpire.none:
+				req.session['sess.pwage'] = 'ok'
+			elif self.pw_age_max is None:
+				req.session['sess.pwage'] = 'ok'
+			else:
+				req.session['sess.pwage'] = 'force'
 		return True
 
 	def __str__(self):
@@ -2834,6 +3148,15 @@ class UserPhone(Base):
 			self.number
 		)
 
+	def add_to_vcard(self, card):
+		obj = card.add('tel')
+		objtype = list(PhoneType.vcard_types(self.type))
+		if self.primary:
+			objtype.append('pref')
+		obj.type_paramlist = objtype
+		# TODO: convert to intl. format
+		obj.value = self.number
+
 def _mod_phone(mapper, conn, tgt):
 	try:
 		from netprofile_ldap.ldap import store
@@ -2844,6 +3167,8 @@ def _mod_phone(mapper, conn, tgt):
 	if (not user) and user_id:
 		user = DBSession().query(User).get(user_id)
 	if user:
+		user.vcard = None
+		user.mod_vcard = True
 		store(user)
 
 event.listen(UserPhone, 'after_delete', _mod_phone)
@@ -2970,6 +3295,16 @@ class UserEmail(Base):
 	def __str__(self):
 		return '%s' % (self.address,)
 
+	def add_to_vcard(self, card):
+		obj = card.add('email')
+		objtype = ['INTERNET']
+		if self.scope is not None:
+			objtype.append(self.scope.name.upper())
+		if self.primary:
+			objtype.append('pref')
+		obj.type_paramlist = objtype
+		obj.value = self.address
+
 def _mod_mail(mapper, conn, tgt):
 	try:
 		from netprofile_ldap.ldap import store
@@ -2980,6 +3315,8 @@ def _mod_mail(mapper, conn, tgt):
 	if (not user) and user_id:
 		user = DBSession().query(User).get(user_id)
 	if user:
+		user.vcard = None
+		user.mod_vcard = True
 		store(user)
 
 event.listen(UserEmail, 'after_delete', _mod_mail)
@@ -3290,6 +3627,119 @@ class DAVLock(Base):
 			self.timeout = self.creation_time + dt.timedelta(seconds=1800)
 		return old_td
 
+class DAVHistoryOp(DeclEnum):
+	"""
+	DAV resource operation type.
+	"""
+	add    = 'A', _('Add'),    10
+	modify = 'M', _('Modify'), 20
+	delete = 'D', _('Delete'), 30
+
+class DAVHistory(Base):
+	"""
+	DAV collection history log.
+
+	Used in WebDAV sync protocol extension.
+	"""
+
+	__tablename__ = 'dav_history'
+	__table_args__ = (
+		Comment('DAV resource modification history'),
+		Index('dav_history_i_collchange', 'collid', 'changeid'),
+		Index('dav_history_i_changeid', 'changeid'),
+		Index('dav_history_i_ts', 'ts'),
+		{
+			'mysql_engine'  : 'InnoDB',
+			'mysql_charset' : 'utf8'
+		}
+	)
+	id = Column(
+		'dhistid',
+		UInt64(),
+		Sequence('dav_history_dhistid_seq'),
+		Comment('DAV history item ID'),
+		primary_key=True,
+		nullable=False,
+		info={
+			'header_string' : _('ID')
+		}
+	)
+	collection_id = Column(
+		'collid',
+		ASCIIString(32),
+		Comment('DAV collection ID'),
+		nullable=False,
+		info={
+			'header_string' : _('Collection ID')
+		}
+	)
+	change_id = Column(
+		'changeid',
+		Int64(),
+		Comment('DAV sequential history change ID'),
+		nullable=False,
+		info={
+			'header_string' : _('ID')
+		}
+	)
+	is_collection = Column(
+		'iscoll',
+		NPBoolean(),
+		Comment('Is resource a collection?'),
+		nullable=False,
+		default=False,
+		server_default=npbool(False),
+		info={
+			'header_string' : _('Collection Resource')
+		}
+	)
+	operation = Column(
+		'op',
+		DAVHistoryOp.db_type(),
+		Comment('Operation type'),
+		nullable=False,
+		info={
+			'header_string' : _('Operation')
+		}
+	)
+	timestamp = Column(
+		'ts',
+		TIMESTAMP(),
+		Comment('Operation timestamp'),
+		CurrentTimestampDefault(),
+		nullable=False,
+		info={
+			'header_string' : _('Time')
+		}
+	)
+	uri = Column(
+		Unicode(1000),
+		Comment('Resource URI'),
+		nullable=False,
+		info={
+			'header_string' : _('URI')
+		}
+	)
+
+	@classmethod
+	def find(cls, coll_id, since_token, until_token=None):
+		sess = DBSession()
+		q = sess.query(DAVHistory).filter(
+			DAVHistory.collection_id == coll_id,
+			DAVHistory.change_id > since_token
+		).order_by(DAVHistory.change_id)
+		if until_token is not None:
+			q = q.filter(DAVHistory.change_id <= until_token)
+		return q
+
+	@property
+	def is_add(self):
+		return (self.operation == DAVHistoryOp.add)
+
+	@property
+	def is_delete(self):
+		return (self.operation == DAVHistoryOp.delete)
+
 class FileMeta(Mutable, dict):
 	@classmethod
 	def coerce(cls, key, value):
@@ -3352,6 +3802,7 @@ class FileFolder(Base):
 		Index('files_folders_u_folder', 'parentid', 'name', unique=True),
 		Index('files_folders_i_uid', 'uid'),
 		Index('files_folders_i_gid', 'gid'),
+		Index('files_folders_i_synctoken', 'synctoken'),
 		Trigger('before', 'insert', 't_files_folders_bi'),
 		Trigger('before', 'update', 't_files_folders_bu'),
 		Trigger('after', 'insert', 't_files_folders_ai'),
@@ -3426,6 +3877,17 @@ class FileFolder(Base):
 			'editor_config' : { 'allowBlank' : False }
 		}
 	)
+	sync_token = Column(
+		'synctoken',
+		Int64(),
+		Comment('Sync token for DAV'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Sync Token')
+		}
+	)
 	rights = Column(
 		UInt32(),
 		Comment('Rights bitmask'),
@@ -3465,7 +3927,6 @@ class FileFolder(Base):
 		Comment('Last modification timestamp'),
 		CurrentTimestampDefault(on_update=True),
 		nullable=False,
-#		default=zzz,
 		info={
 			'header_string' : _('Modified')
 		}
@@ -3499,6 +3960,7 @@ class FileFolder(Base):
 			'header_string' : _('Metadata')
 		}
 	)
+
 	files = relationship(
 		'File',
 		backref='folder',
@@ -3622,11 +4084,11 @@ class FileFolder(Base):
 	def __acl__(self):
 		rights = self.rights
 		if self.user:
-			ff_user = 'u:%s' % self.user.login
+			ff_user = 'u:%s' % (self.user.login,)
 		else:
 			ff_user = 'u:'
 		if self.group:
-			ff_group = 'g:%s' % self.group.name
+			ff_group = 'g:%s' % (self.group.name,)
 		else:
 			ff_group = 'g:'
 		can_access_u = None
@@ -3679,11 +4141,11 @@ class FileFolder(Base):
 
 	def dav_acl(self, req):
 		if self.user:
-			ff_user = 'u:%s' % self.user.login
+			ff_user = 'u:%s' % (self.user.login,)
 		else:
 			ff_user = 'u:'
 		if self.group:
-			ff_group = 'g:%s' % self.group.name
+			ff_group = 'g:%s' % (self.group.name,)
 		else:
 			ff_group = 'g:'
 		owner_y = []
@@ -3702,7 +4164,10 @@ class FileFolder(Base):
 			if bucket is None:
 				continue
 			if ace[2] == 'read':
-				bucket.append(dprops.ACL_READ)
+				bucket.extend((
+					dprops.ACL_READ,
+					dprops.ACL_READ_ACL
+				))
 			elif ace[2] == 'write':
 				bucket.extend((
 					dprops.ACL_WRITE,
@@ -3747,8 +4212,6 @@ class FileFolder(Base):
 
 	def dav_props(self, pset):
 		ret = {}
-		if dprops.RESOURCE_TYPE in pset:
-			ret[dprops.RESOURCE_TYPE] = DAVResourceTypeValue(dprops.COLLECTION)
 		if dprops.CREATION_DATE in pset:
 			ret[dprops.CREATION_DATE] = self.creation_time
 		if dprops.DISPLAY_NAME in pset:
@@ -3761,6 +4224,19 @@ class FileFolder(Base):
 			ret[dprops.IS_FOLDER] = 't'
 		if dprops.IS_HIDDEN in pset:
 			ret[dprops.IS_HIDDEN] = '0'
+		if dprops.ETAG in pset:
+			etag = None
+			if self.sync_token:
+				etag = '"ST:%d"' % (self.sync_token,)
+			ret[dprops.ETAG] = etag
+		if dprops.CTAG in pset:
+			ctag = None
+			if self.sync_token:
+				ctag = '%s%s' % (
+					dprops.NS_SYNC,
+					str(self.sync_token)
+				)
+			ret[dprops.CTAG] = ctag
 		if isinstance(pset, DAVAllPropsSet):
 			ret.update(self.get_props())
 		else:
@@ -3835,7 +4311,7 @@ class FileFolder(Base):
 				obj.creation_time = props[dprops.CREATION_DATE]
 			if dprops.LAST_MODIFIED in props:
 				obj.modification_time = props[dprops.LAST_MODIFIED]
-		return obj
+		return (obj, False)
 
 	def dav_append(self, req, ctx, name):
 		if isinstance(ctx, File):
@@ -3867,6 +4343,24 @@ class FileFolder(Base):
 			t.__plugin__ = getattr(self, '__plugin__', None)
 			t.__parent__ = self
 			yield t
+
+	@property
+	def dav_collections(self):
+		for t in self.subfolders:
+			t.__req__ = getattr(self, '__req__', None)
+			t.__plugin__ = getattr(self, '__plugin__', None)
+			t.__parent__ = self
+			yield t
+
+	@property
+	def dav_collection_id(self):
+		if not self.id:
+			raise RuntimeError('Requested collection ID from non-persistent folder.')
+		return 'FF:%u' % (self.id,)
+
+	@property
+	def dav_sync_token(self):
+		return self.sync_token
 
 	def allow_read(self, req):
 		return self.can_read(req.user)
@@ -3915,8 +4409,109 @@ class FileFolder(Base):
 			par = par.parent
 		return False
 
+	@property
+	def needs_dav_history(self):
+		attrs = inspect(self).attrs
+		attrnames = (
+			'parent',
+			'name',
+			'user',
+			'user_id',
+			'group',
+			'group_id',
+			'rights',
+			'description'
+		)
+		for aname in attrnames:
+			if getattr(attrs, aname).history.has_changes():
+				return True
+		return False
+
+	def get_dav_history(self, sess, token_value):
+		coll_id = ('FF:%u' % (self.parent.id,)) if self.parent else 'PLUG:VFS'
+		if self in sess.deleted:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.delete,
+				uri=self.name
+			),)
+		if self in sess.new:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.add,
+				uri=self.name
+			),)
+		attrs = inspect(self).attrs
+		name_hist = attrs.name.history
+		parent_hist = attrs.parent.history
+		if parent_hist.has_changes() or name_hist.has_changes():
+			old_parent = parent_hist.non_added()
+			if len(old_parent) and old_parent[0]:
+				old_parent = 'FF:%u' % (old_parent[0].id,)
+			else:
+				old_parent = 'PLUG:VFS'
+
+			new_parent = parent_hist.non_deleted()
+			if len(new_parent) and new_parent[0]:
+				new_parent = 'FF:%u' % (new_parent[0].id,)
+			else:
+				new_parent = 'PLUG:VFS'
+
+			old_name = name_hist.non_added()[0]
+			new_name = name_hist.non_deleted()[0]
+
+			return (DAVHistory(
+				collection_id=old_parent,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.delete,
+				uri=old_name
+			), DAVHistory(
+				collection_id=new_parent,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.add,
+				uri=new_name
+			))
+		return (DAVHistory(
+			collection_id=coll_id,
+			change_id=token_value,
+			is_collection=True,
+			operation=DAVHistoryOp.modify,
+			uri=self.name
+		),)
+
 	def __str__(self):
 		return '%s' % str(self.name)
+
+@event.listens_for(FileFolder.parent_id, 'set', active_history=True)
+def _on_set_ff_parent_id(tgt, value, oldvalue, initiator):
+	if value is None:
+		tgt.parent = None
+	else:
+		tgt.parent = DBSession().query(FileFolder).get(value)
+	return value
+
+@event.listens_for(FileFolder.sync_token, 'set', active_history=True)
+def _on_set_ff_synctoken(tgt, value, oldvalue, initiator):
+	if value is None:
+		return value
+	hist = inspect(tgt).attrs.parent.history
+	has_parents = False
+	for parent in hist.sum():
+		if parent is None:
+			continue
+		has_parents = True
+		parent.sync_token = value
+	if not has_parents:
+		var_vfs = NPVariable.get_rw('DAV:SYNC:PLUG:VFS')
+		if value > var_vfs.integer_value:
+			var_vfs.integer_value = value
+	return value
 
 _BLOCK_SIZE = 4096 * 64 # 256K
 _CHUNK_SIZE = 1024 * 1024 * 2 # 2M
@@ -4006,6 +4601,63 @@ class FileResponse(Response):
 				if app_iter is None:
 					app_iter = FileIter(bio, _BLOCK_SIZE)
 				self.app_iter = app_iter
+
+		if cr:
+			self.content_length = (cr.stop - cr.start)
+		else:
+			self.content_length = obj.size
+		if cache_max_age is not None:
+			self.cache_expires = cache_max_age
+
+class vCardResponse(Response):
+	def __init__(self, obj, request=None, cache_max_age=None, content_encoding=None):
+		super(vCardResponse, self).__init__(conditional_response=True)
+		self.last_modified = obj.modification_time
+		self.content_type = 'text/vcard'
+		self.charset = 'UTF-8'
+		self.allow = ('GET', 'HEAD')
+		self.vary = ('Cookie',)
+		# TODO: self.cache_control
+		self.accept_ranges = 'bytes'
+		self.headerlist.append(('X-Frame-Options', 'SAMEORIGIN'))
+		if PY3:
+			self.content_disposition = \
+				'attachment; filename*=UTF-8\'\'%s' % (
+					urllib.parse.quote(obj.name, '')
+				)
+		else:
+			self.content_disposition = \
+				'attachment; filename*=UTF-8\'\'%s' % (
+					urllib.quote(obj.name.encode(), '')
+				)
+		self.etag = obj.etag
+		self.content_encoding = content_encoding
+		cr = None
+		if request.range and (self in request.if_range) and (',' not in request.headers.get('Range')):
+			cr = request.range.content_range(length=obj.size)
+		if cr:
+			self.status = 206
+			self.content_range = cr
+		elif obj.size:
+			self.content_range = (0, obj.size, obj.size)
+			if request.range and ('If-Range' not in request.headers):
+				self.status = 416
+				self.content_range = 'bytes */%d' % obj.size
+
+		if request.method != 'HEAD':
+			bio = None
+			app_iter = None
+			if cr:
+				bio = io.BytesIO(obj.data[cr.start:cr.stop])
+			else:
+				bio = io.BytesIO(obj.data)
+			if request is not None:
+				environ = request.environ
+				if 'wsgi.file_wrapper' in environ:
+					app_iter = environ['wsgi.file_wrapper'](bio, _BLOCK_SIZE)
+			if app_iter is None:
+				app_iter = FileIter(bio, _BLOCK_SIZE)
+			self.app_iter = app_iter
 
 		if cr:
 			self.content_length = (cr.stop - cr.start)
@@ -4172,7 +4824,6 @@ class File(Base):
 		Comment('Last modification timestamp'),
 		CurrentTimestampDefault(on_update=True),
 		nullable=False,
-#		default=zzz,
 		info={
 			'header_string' : _('Modified'),
 			'read_only'     : True
@@ -4346,11 +4997,11 @@ class File(Base):
 	def __acl__(self):
 		rights = self.rights
 		if self.user:
-			ff_user = 'u:%s' % self.user.login
+			ff_user = 'u:%s' % (self.user.login,)
 		else:
 			ff_user = 'u:'
 		if self.group:
-			ff_group = 'g:%s' % self.group.name
+			ff_group = 'g:%s' % (self.group.name,)
 		else:
 			ff_group = 'g:'
 		can_access_u = None
@@ -4407,11 +5058,11 @@ class File(Base):
 
 	def dav_acl(self, req):
 		if self.user:
-			ff_user = 'u:%s' % self.user.login
+			ff_user = 'u:%s' % (self.user.login,)
 		else:
 			ff_user = 'u:'
 		if self.group:
-			ff_group = 'g:%s' % self.group.name
+			ff_group = 'g:%s' % (self.group.name,)
 		else:
 			ff_group = 'g:'
 		owner_y = []
@@ -4430,7 +5081,10 @@ class File(Base):
 			if bucket is None:
 				continue
 			if ace[2] == 'read':
-				bucket.append(dprops.ACL_READ)
+				bucket.extend((
+					dprops.ACL_READ,
+					dprops.ACL_READ_ACL
+				))
 			elif ace[2] == 'write':
 				bucket.extend((
 					dprops.ACL_WRITE,
@@ -4461,8 +5115,6 @@ class File(Base):
 
 	def dav_props(self, pset):
 		ret = {}
-		if dprops.RESOURCE_TYPE in pset:
-			ret[dprops.RESOURCE_TYPE] = DAVResourceTypeValue()
 		if dprops.CONTENT_LENGTH in pset:
 			ret[dprops.CONTENT_LENGTH] = self.size
 		if dprops.CONTENT_TYPE in pset:
@@ -4474,7 +5126,7 @@ class File(Base):
 		if dprops.ETAG in pset:
 			etag = None
 			if self.etag:
-				etag = '"%s"' % self.etag
+				etag = '"%s"' % (self.etag,)
 			ret[dprops.ETAG] = etag
 		if hasattr(self, '__req__'):
 			req = self.__req__
@@ -4532,11 +5184,12 @@ class File(Base):
 			self.set_region_from_file(data, start, length, req.user)
 		else:
 			self.set_from_file(data, req.user)
+		return False
 
 	def dav_clone(self, req):
 		# TODO: clone meta
 		obj = File(
-			folder_id=self.folder_id,
+			folder_id=None,
 			filename=self.filename,
 			name=self.name,
 			user_id=self.user_id,
@@ -4710,8 +5363,91 @@ class File(Base):
 		with self.open('r', sess=sess) as fd:
 			return fd.read()
 
+	@property
+	def needs_dav_history(self):
+		attrs = inspect(self).attrs
+		attrnames = (
+			'folder',
+			'filename',
+			'name',
+			'user',
+			'user_id',
+			'group',
+			'group_id',
+			'rights',
+			'size',
+			'etag',
+			'description',
+			'data'
+		)
+		for aname in attrnames:
+			if getattr(attrs, aname).history.has_changes():
+				return True
+		return False
+
+	def get_dav_history(self, sess, token_value):
+		coll_id = ('FF:%u' % (self.folder.id,)) if self.folder else 'PLUG:VFS'
+		if self in sess.deleted:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=self.filename
+			),)
+		if self in sess.new:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=self.filename
+			),)
+		attrs = inspect(self).attrs
+		name_hist = attrs.filename.history
+		parent_hist = attrs.folder.history
+		if parent_hist.has_changes() or name_hist.has_changes():
+			old_parent = parent_hist.non_added()
+			if len(old_parent) and old_parent[0]:
+				old_parent = 'FF:%u' % (old_parent[0].id,)
+			else:
+				old_parent = 'PLUG:VFS'
+
+			new_parent = parent_hist.non_deleted()
+			if len(new_parent) and new_parent[0]:
+				new_parent = 'FF:%u' % (new_parent[0].id,)
+			else:
+				new_parent = 'PLUG:VFS'
+
+			old_name = name_hist.non_added()[0]
+			new_name = name_hist.non_deleted()[0]
+
+			return (DAVHistory(
+				collection_id=old_parent,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=old_name
+			), DAVHistory(
+				collection_id=new_parent,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=new_name
+			))
+		return (DAVHistory(
+			collection_id=coll_id,
+			change_id=token_value,
+			operation=DAVHistoryOp.modify,
+			uri=self.filename
+		),)
+
 	def __str__(self):
 		return '%s' % str(self.filename)
+
+@event.listens_for(File.folder_id, 'set', active_history=True)
+def _on_set_file_folder_id(tgt, value, oldvalue, initiator):
+	if value is None:
+		tgt.folder = None
+	else:
+		tgt.folder = DBSession().query(FileFolder).get(value)
+	return value
 
 class FileChunk(Base):
 	"""
@@ -5301,7 +6037,7 @@ class LogData(Base):
 	__table_args__ = (
 		Comment('Actual system log'),
 		{
-			'mysql_engine'  : 'InnoDB', # or leave MyISAM?
+			'mysql_engine'  : 'InnoDB',
 			'mysql_charset' : 'utf8',
 			'info'          : {
 				'cap_menu'     : 'BASE_ADMIN',
@@ -5338,7 +6074,6 @@ class LogData(Base):
 		Comment('Log entry timestamp'),
 		CurrentTimestampDefault(),
 		nullable=False,
-#		default=zzz,
 		info={
 			'header_string' : _('Time')
 		}
@@ -5616,7 +6351,6 @@ class PasswordHistory(Base):
 		Comment('Time of change'),
 		CurrentTimestampDefault(),
 		nullable=False,
-#		default=zzz,
 		info={
 			'header_string' : _('Time')
 		}
@@ -6569,7 +7303,7 @@ class Calendar(Base):
 	group_id = Column(
 		'gid',
 		UInt32(),
-		ForeignKey('groups.gid', name='calendars_def_fk_gid', ondelete='CASCADE', onupdate='CASCADE'),
+		ForeignKey('groups.gid', name='calendars_def_fk_gid', ondelete='SET NULL', onupdate='CASCADE'),
 		Comment('Group ID'),
 		nullable=True,
 		default=None,
@@ -6963,7 +7697,6 @@ class Event(Base):
 		Comment('Last modification timestamp'),
 		CurrentTimestampDefault(on_update=True),
 		nullable=False,
-#		default=zzz,
 		info={
 			'header_string' : _('Modified')
 		}
@@ -7092,6 +7825,964 @@ class Event(Base):
 			return True
 		return False
 
+@implementer(IDAVCollection, IDAVAddressBook)
+class AddressBook(Base):
+	"""
+	Address book owned by a user.
+	"""
+	__tablename__ = 'abooks_def'
+	__table_args__ = (
+		Comment('User address books'),
+		Index('abooks_def_u_ab', 'uid', 'name', unique=True),
+		Index('abooks_def_i_gid', 'gid'),
+		Index('abooks_def_i_synctoken', 'synctoken'),
+		{
+			'mysql_engine'  : 'InnoDB',
+			'mysql_charset' : 'utf8',
+			'info'          : {
+				'menu_name'     : _('Address Books'),
+				'default_sort'  : ({ 'property': 'name' ,'direction': 'ASC' },),
+				'grid_view'     : ('abookid', 'name', 'user', 'group', 'group_access', 'global_access'),
+				'grid_hidden'   : ('abookid', 'user'),
+				'form_view'     : ('name', 'group', 'group_access', 'global_access', 'descr'),
+				'easy_search'   : ('name', 'descr'),
+				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
+				'create_wizard' : SimpleWizard(title=_('Add new address book'))
+			}
+		}
+	)
+	id = Column(
+		'abookid',
+		UInt32(),
+		Sequence('abooks_def_abookid_seq', start=101, increment=1),
+		Comment('Address book ID'),
+		primary_key=True,
+		nullable=False,
+		info={
+			'header_string' : _('ID')
+		}
+	)
+	user_id = Column(
+		'uid',
+		UInt32(),
+		ForeignKey('users.uid', name='abooks_def_fk_uid', ondelete='CASCADE', onupdate='CASCADE'),
+		Comment('User ID'),
+		nullable=False,
+		info={
+			'header_string' : _('User'),
+			'read_only'     : True,
+			'filter_type'   : 'none',
+			'column_flex'   : 2
+		}
+	)
+	group_id = Column(
+		'gid',
+		UInt32(),
+		ForeignKey('groups.gid', name='abooks_def_fk_gid', ondelete='SET NULL', onupdate='CASCADE'),
+		Comment('Group ID'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Group'),
+			'filter_type'   : 'none',
+			'column_flex'   : 2
+		}
+	)
+	group_access = Column(
+		CalendarAccess.db_type(),
+		Comment('Address book access rule for owner group'),
+		nullable=False,
+		default=CalendarAccess.none,
+		server_default=CalendarAccess.none,
+		info={
+			'header_string' : _('Group Access'),
+			'column_flex'   : 2
+		}
+	)
+	global_access = Column(
+		CalendarAccess.db_type(),
+		Comment('Address book access rule for everyone not in group'),
+		nullable=False,
+		default=CalendarAccess.none,
+		server_default=CalendarAccess.none,
+		info={
+			'header_string' : _('Global Access'),
+			'column_flex'   : 2
+		}
+	)
+	name = Column(
+		Unicode(255),
+		Comment('Address book name'),
+		nullable=False,
+		default=_('Main Address Book'),
+		server_default='Main Address Book',
+		info={
+			'header_string' : _('Name'),
+			'column_flex'   : 3
+		}
+	)
+	sync_token = Column(
+		'synctoken',
+		Int64(),
+		Comment('Sync token for DAV'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Sync Token')
+		}
+	)
+	description = Column(
+		'descr',
+		UnicodeText(),
+		Comment('Address book description'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Description')
+		}
+	)
+	meta = Column(
+		FileMeta.as_mutable(PickleType),
+		Comment('Serialized meta-data'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Metadata')
+		}
+	)
+
+	cards = relationship(
+		'AddressBookCard',
+		backref=backref('address_book', innerjoin=True),
+		cascade='all, delete-orphan',
+		passive_deletes=True
+	)
+
+	@property
+	def __name__(self):
+		return self.name
+
+	def __iter__(self):
+		for card in self.cards:
+			yield card.name
+
+	def __getitem__(self, name):
+		sess = DBSession()
+		try:
+			card = sess.query(AddressBookCard).filter(AddressBookCard.address_book == self, AddressBookCard.name == name).one()
+		except NoResultFound:
+			raise KeyError('No such file or directory')
+		card.__req__ = getattr(self, '__req__', None)
+		card.__plugin__ = getattr(self, '__plugin__', None)
+		card.__parent__ = self
+		return card
+
+	def can_read(self, user):
+		if self.user_id == user.id:
+			return True
+		if (self.group_id is not None) and (self.group_id == user.group.id):
+			return (self.group_access != CalendarAccess.none)
+		return (self.global_access != CalendarAccess.none)
+
+	def can_write(self, user):
+		if self.user_id == user.id:
+			return True
+		if (self.group_id is not None) and (self.group_id == user.group.id):
+			return (self.group_access == CalendarAccess.read_write)
+		return (self.global_access == CalendarAccess.read_write)
+
+	def __str__(self):
+		return '%s' % str(self.name)
+
+	@classmethod
+	def __augment_query__(cls, sess, query, params, req):
+		query = query.filter(AddressBook.user_id == req.user.id)
+		return query
+
+	@classmethod
+	def __augment_create__(cls, sess, obj, values, req):
+		obj.user_id = req.user.id
+		return True
+
+	@classmethod
+	def __augment_update__(cls, sess, obj, values, req):
+		if obj.user_id == req.user.id:
+			return True
+		return False
+
+	@classmethod
+	def __augment_delete__(cls, sess, obj, values, req):
+		if obj.user_id == req.user.id:
+			return True
+		return False
+
+	@property
+	def dav_owner(self):
+		return self.user
+
+	@property
+	def dav_group(self):
+		return self.group
+
+	def get_uri(self):
+		return [ '', 'addressbooks', 'users', self.user.login, self.name ]
+
+	def dav_props(self, pset):
+		ret = {}
+		if dprops.DISPLAY_NAME in pset:
+			ret[dprops.DISPLAY_NAME] = self.name
+		if dprops.ETAG in pset:
+			etag = None
+			if self.sync_token:
+				etag = '"ST:%d"' % (self.sync_token,)
+			ret[dprops.ETAG] = etag
+		if dprops.CTAG in pset:
+			ctag = None
+			if self.sync_token:
+				ctag = '%s%s' % (
+					dprops.NS_SYNC,
+					str(self.sync_token)
+				)
+			ret[dprops.CTAG] = ctag
+		if dprops.ADDRESS_BOOK_DESCRIPTION in pset:
+			ret[dprops.ADDRESS_BOOK_DESCRIPTION] = self.description
+		if dprops.SUPPORTED_ADDRESS_DATA in pset:
+			ret[dprops.SUPPORTED_ADDRESS_DATA] = DAVSupportedAddressDataValue(('text/vcard', '3.0'))
+		if isinstance(pset, DAVAllPropsSet):
+			ret.update(self.get_props())
+		else:
+			custom = pset.difference(dprops.RO_PROPS)
+			for cprop in custom:
+				try:
+					ret[cprop] = self.get_prop(cprop)
+				except KeyError:
+					pass
+		return ret
+
+	def dav_props_set(self, pdict):
+		pset = set(pdict)
+		if dprops.ADDRESS_BOOK_DESCRIPTION in pset:
+			self.description = pdict[dprops.ADDRESS_BOOK_DESCRIPTION]
+			pset.remove(dprops.ADDRESS_BOOK_DESCRIPTION)
+		custom = pset.difference(dprops.RO_PROPS)
+		for cprop in custom:
+			if pdict[cprop] is None:
+				self.del_prop(cprop)
+			else:
+				self.set_prop(cprop, pdict[cprop])
+		return True
+
+	def get_prop(self, name):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.get_prop(name)
+
+	def get_props(self):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.get_props()
+
+	def set_prop(self, name, value):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.set_prop(name, value)
+
+	def del_prop(self, name):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.del_prop(name)
+
+	@property
+	def __acl__(self):
+		if self.user:
+			ab_user = 'u:%s' % (self.user.login,)
+		else:
+			ab_user = 'u:'
+		if self.group:
+			ab_group = 'g:%s' % (self.group.name,)
+		else:
+			ab_group = 'g:'
+		return (
+			(Allow, ab_user, 'read'),
+			(Allow, ab_user, 'write'),
+			(Allow, ab_user, 'create'),
+			(Allow, ab_user, 'delete'),
+			(Allow if (self.group_access != CalendarAccess.none) else Deny, ab_group, 'read'),
+			(Allow if (self.group_access == CalendarAccess.read_write) else Deny, ab_group, 'write'),
+			(Allow if (self.group_access == CalendarAccess.read_write) else Deny, ab_group, 'create'),
+			(Allow if (self.group_access == CalendarAccess.read_write) else Deny, ab_group, 'delete'),
+			(Allow if (self.global_access != CalendarAccess.none) else Deny, Everyone, 'read'),
+			(Allow if (self.global_access == CalendarAccess.read_write) else Deny, Everyone, 'write'),
+			(Allow if (self.global_access == CalendarAccess.read_write) else Deny, Everyone, 'create'),
+			(Allow if (self.global_access == CalendarAccess.read_write) else Deny, Everyone, 'delete'),
+			DENY_ALL
+		)
+
+	def dav_acl(self, req):
+		if self.user:
+			ab_user = 'u:%s' % (self.user.login,)
+		else:
+			ab_user = 'u:'
+		if self.group:
+			ab_group = 'g:%s' % (self.group.name,)
+		else:
+			ab_group = 'g:'
+		owner_y = []
+		group_y = []
+		other_y = []
+		for ace in self.__acl__:
+			if ace[0] != Allow:
+				continue
+			bucket = None
+			if ace[1] == ab_user:
+				bucket = owner_y
+			elif ace[1] == ab_group:
+				bucket = group_y
+			elif ace[1] == Everyone:
+				bucket = other_y
+			if bucket is None:
+				continue
+			if ace[2] == 'read':
+				bucket.extend((
+					dprops.ACL_READ,
+					dprops.ACL_READ_ACL
+				))
+			elif ace[2] == 'write':
+				bucket.extend((
+					dprops.ACL_WRITE,
+					dprops.ACL_WRITE_CONTENT,
+					dprops.ACL_WRITE_PROPERTIES
+				))
+			elif ace[2] == 'create':
+				bucket.append(dprops.ACL_BIND)
+			elif ace[2] == 'delete':
+				bucket.append(dprops.ACL_UNBIND)
+		aces = []
+		if len(owner_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.PROPERTY, prop=dprops.OWNER),
+				grant=owner_y,
+				protected=True
+			))
+		if len(group_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.PROPERTY, prop=dprops.GROUP),
+				grant=group_y,
+				protected=True
+			))
+		if len(other_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.ALL),
+				grant=other_y,
+				protected=True
+			))
+		return DAVACLValue(aces)
+
+	def dav_create(self, req, name, rtype=None, props=None, data=None):
+		user = req.user
+		sess = DBSession()
+		if rtype and (dprops.COLLECTION in rtype):
+			raise ValueError('Can\'t create collections inside address books.')
+		obj = AddressBookCard(
+			name=name,
+			address_book=self
+		)
+		mod = False
+		if data is not None:
+			mod = obj.dav_put(req, data)
+		sess.add(obj)
+		if props:
+			if dprops.CREATION_DATE in props:
+				obj.creation_time = props[dprops.CREATION_DATE]
+			if dprops.LAST_MODIFIED in props:
+				obj.modification_time = props[dprops.LAST_MODIFIED]
+		return (obj, mod)
+
+	def dav_append(self, req, ctx, name):
+		if isinstance(ctx, AddressBookCard):
+			ctx.address_book = self
+			ctx.name = name
+
+	def dav_clone(self, req):
+		# TODO: clone meta
+		obj = AddressBook(
+			name=self.name,
+			user_id=self.user_id,
+			group_id=self.group_id,
+			group_access=self.group_access,
+			global_access=self.global_access,
+			description=self.description
+		)
+		return obj
+
+	@property
+	def dav_children(self):
+		for card in self.cards:
+			card.__req__ = getattr(self, '__req__', None)
+			card.__plugin__ = getattr(self, '__plugin__', None)
+			card.__parent__ = self
+			yield card
+
+	@property
+	def dav_collection_id(self):
+		if not self.id:
+			raise RuntimeError('Requested collection ID from non-persistent address book.')
+		return 'AB:%u' % (self.id,)
+
+	@property
+	def dav_sync_token(self):
+		return self.sync_token
+
+	@property
+	def needs_dav_history(self):
+		attrs = inspect(self).attrs
+		attrnames = (
+			'name',
+			'user',
+			'user_id',
+			'group',
+			'group_id',
+			'description'
+		)
+		for aname in attrnames:
+			if getattr(attrs, aname).history.has_changes():
+				return True
+		return False
+
+	def get_dav_history(self, sess, token_value):
+		coll_id = 'ABC:%u' % (self.user.id,)
+		if self in sess.deleted:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.delete,
+				uri=self.name
+			),)
+		if self in sess.new:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.add,
+				uri=self.name
+			),)
+		attrs = inspect(self).attrs
+		name_hist = attrs.name.history
+		if name_hist.has_changes():
+			old_name = name_hist.non_added()[0]
+			new_name = name_hist.non_deleted()[0]
+
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.delete,
+				uri=old_name
+			), DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				is_collection=True,
+				operation=DAVHistoryOp.add,
+				uri=new_name
+			))
+		return (DAVHistory(
+			collection_id=coll_id,
+			change_id=token_value,
+			is_collection=True,
+			operation=DAVHistoryOp.modify,
+			uri=self.name
+		),)
+
+@event.listens_for(AddressBook.user_id, 'set', active_history=True)
+def _on_set_ab_user_id(tgt, value, oldvalue, initiator):
+	if value is None:
+		tgt.user = None
+	else:
+		tgt.user = DBSession().query(User).get(value)
+	return value
+
+@event.listens_for(AddressBook.sync_token, 'set', active_history=True)
+def _on_set_ab_synctoken(tgt, value, oldvalue, initiator):
+	if value is None:
+		return value
+	if tgt.user and tgt.user.id:
+		try:
+			var_abc = NPVariable.get_rw('DAV:SYNC:ABC:%u' % (tgt.user.id,))
+		except NoResultFound:
+			var_abc = NPVariable(
+				name='DAV:SYNC:ABC:%u' % (tgt.user.id,),
+				integer_value=0
+			)
+		syncvars = (
+			var_abc,
+			NPVariable.get_rw('DAV:SYNC:PLUG:UABOOKS'),
+			NPVariable.get_rw('DAV:SYNC:PLUG:ABOOKS')
+		)
+		for var in syncvars:
+			if value > var.integer_value:
+				var.integer_value = value
+	return value
+
+@implementer(IDAVCard, IDAVFile)
+class AddressBookCard(Base):
+	"""
+	vCard from a user's address book.
+	"""
+	__tablename__ = 'abooks_cards'
+	__table_args__ = (
+		Comment('User address book vCards'),
+		Index('abooks_cards_u_card', 'abookid', 'name', unique=True),
+		Index('abooks_cards_i_gid', 'name'),
+		{
+			'mysql_engine'  : 'InnoDB',
+			'mysql_charset' : 'utf8',
+			'info'          : {
+				'menu_name'     : _('Address Cards'),
+				'default_sort'  : ({ 'property': 'name' ,'direction': 'ASC' },),
+				'grid_view'     : ('abookid', 'address_book', 'name', 'ctime', 'mtime'),
+				'grid_hidden'   : ('abookid',),
+				'form_view'     : ('address_book', 'name', 'size', 'etag'),
+				'easy_search'   : ('name',),
+				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
+				'create_wizard' : SimpleWizard(title=_('Add new card'))
+			}
+		}
+	)
+	id = Column(
+		'vcardid',
+		UInt32(),
+		Sequence('abooks_cards_vcardid_seq'),
+		Comment('Address book vCard ID'),
+		primary_key=True,
+		nullable=False,
+		info={
+			'header_string' : _('ID')
+		}
+	)
+	address_book_id = Column(
+		'abookid',
+		UInt32(),
+		ForeignKey('abooks_def.abookid', name='abooks_cards_fk_abookid', ondelete='CASCADE', onupdate='CASCADE'),
+		Comment('Address book ID'),
+		nullable=False,
+		info={
+			'header_string' : _('Address Book'),
+			'column_flex'   : 2,
+			'filter_type'   : 'none'
+		}
+	)
+	name = Column(
+		ExactUnicode(255),
+		Comment('vCard file name'),
+		nullable=False,
+		info={
+			'header_string' : _('Name')
+		}
+	)
+	size = Column(
+		UInt32(),
+		Comment('vCard file size (in bytes)'),
+		nullable=False,
+		info={
+			'header_string' : _('Size'),
+			'read_only'     : True
+		}
+	)
+	creation_time = Column(
+		'ctime',
+		TIMESTAMP(),
+		Comment('Creation timestamp'),
+		nullable=True,
+		default=None,
+		server_default=FetchedValue(),
+		info={
+			'header_string' : _('Created')
+		}
+	)
+	modification_time = Column(
+		'mtime',
+		TIMESTAMP(),
+		Comment('Last modification timestamp'),
+		CurrentTimestampDefault(on_update=True),
+		nullable=False,
+		info={
+			'header_string' : _('Modified')
+		}
+	)
+	etag = Column(
+		ASCIIString(255),
+		Comment('Generated vCard ETag'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('E-Tag'),
+			'read_only'     : True
+		}
+	)
+	meta = Column(
+		FileMeta.as_mutable(PickleType),
+		Comment('Serialized meta-data'),
+		nullable=True,
+		default=None,
+		server_default=text('NULL'),
+		info={
+			'header_string' : _('Metadata')
+		}
+	)
+	data = Column(
+		LargeBLOB(),
+		Comment('vCard data'),
+		nullable=False,
+		info={
+			'header_string' : _('Data')
+		}
+	)
+
+	@validates('data')
+	def _set_data(self, k, v):
+		if v is None:
+			return None
+		ctx = hashlib.md5()
+		ctx.update(v)
+		self.etag = ctx.hexdigest()
+		self.size = len(v)
+		return v
+
+	@classmethod
+	def __augment_create__(cls, sess, obj, values, req):
+		u = req.user
+		if 'abookid' not in values:
+			return False
+		abid = values['abookid']
+		if abid is None:
+			return False
+		try:
+			abid = int(abid)
+		except (TypeError, ValueError):
+			return False
+		parent = sess.query(AddressBook).get(abid)
+		if parent is None:
+			return False
+		if not parent.can_write(u):
+			return False
+		return True
+
+	@classmethod
+	def __augment_update__(cls, sess, obj, values, req):
+		u = req.user
+		parent = obj.address_book
+		if parent:
+			if not parent.can_write(u):
+				return False
+		if 'abookid' in values:
+			abid = values['abookid']
+			if abid is None:
+				return False
+			else:
+				try:
+					abid = int(abid)
+				except (TypeError, ValueError):
+					return False
+				new_parent = sess.query(AddressBook).get(abid)
+				if new_parent is None:
+					return False
+				if not new_parent.can_write(u):
+					return False
+		elif parent is None:
+			return False
+		return True
+
+	@classmethod
+	def __augment_delete__(cls, sess, obj, values, req):
+		u = req.user
+		parent = obj.address_book
+		if parent:
+			if not parent.can_write(u):
+				return False
+		else:
+			return False
+		return True
+
+	@property
+	def __name__(self):
+		return self.name
+
+	@property
+	def __acl__(self):
+		ab = self.address_book
+		if ab is None:
+			return (DENY_ALL,)
+		if ab.user:
+			ab_user = 'u:%s' % (ab.user.login,)
+		else:
+			ab_user = 'u:'
+		if ab.group:
+			ab_group = 'g:%s' % (ab.group.name,)
+		else:
+			ab_group = 'g:'
+		return (
+			(Allow, ab_user, 'read'),
+			(Allow, ab_user, 'write'),
+			(Allow if (ab.group_access != CalendarAccess.none) else Deny, ab_group, 'read'),
+			(Allow if (ab.group_access == CalendarAccess.read_write) else Deny, ab_group, 'write'),
+			(Allow if (ab.global_access != CalendarAccess.none) else Deny, Everyone, 'read'),
+			(Allow if (ab.global_access == CalendarAccess.read_write) else Deny, Everyone, 'write'),
+			DENY_ALL
+		)
+
+	def dav_acl(self, req):
+		ab = self.address_book
+		if ab is None:
+			return DAVACLValue(())
+		if ab.user:
+			ab_user = 'u:%s' % (ab.user.login,)
+		else:
+			ab_user = 'u:'
+		if ab.group:
+			ab_group = 'g:%s' % (ab.group.name,)
+		else:
+			ab_group = 'g:'
+		owner_y = []
+		group_y = []
+		other_y = []
+		for ace in self.__acl__:
+			if ace[0] != Allow:
+				continue
+			bucket = None
+			if ace[1] == ab_user:
+				bucket = owner_y
+			elif ace[1] == ab_group:
+				bucket = group_y
+			elif ace[1] == Everyone:
+				bucket = other_y
+			if bucket is None:
+				continue
+			if ace[2] == 'read':
+				bucket.extend((
+					dprops.ACL_READ,
+					dprops.ACL_READ_ACL
+				))
+			elif ace[2] == 'write':
+				bucket.extend((
+					dprops.ACL_WRITE,
+					dprops.ACL_WRITE_CONTENT,
+					dprops.ACL_WRITE_PROPERTIES
+				))
+		aces = []
+		if len(owner_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.PROPERTY, prop=dprops.OWNER),
+				grant=owner_y,
+				protected=True
+			))
+		if len(group_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.PROPERTY, prop=dprops.GROUP),
+				grant=group_y,
+				protected=True
+			))
+		if len(other_y):
+			aces.append(DAVACEValue(
+				DAVPrincipalValue(DAVPrincipalValue.ALL),
+				grant=other_y,
+				protected=True
+			))
+		return DAVACLValue(aces)
+
+	@property
+	def dav_owner(self):
+		if self.address_book:
+			return self.address_book.user
+
+	@property
+	def dav_group(self):
+		if self.address_book:
+			return self.address_book.group
+
+	def get_uri(self):
+		p = getattr(self, '__parent__', None)
+		if p is None:
+			p = self.address_book
+		if p is None:
+			return [ self.name ]
+		uri = p.get_uri()
+		uri.append(self.name)
+		return uri
+
+	def dav_props(self, pset):
+		ret = {}
+		if dprops.CONTENT_LENGTH in pset:
+			ret[dprops.CONTENT_LENGTH] = self.size
+		if dprops.CONTENT_TYPE in pset:
+			ret[dprops.CONTENT_TYPE] = 'text/vcard'
+		if dprops.CREATION_DATE in pset:
+			ret[dprops.CREATION_DATE] = self.creation_time
+		if dprops.DISPLAY_NAME in pset:
+			ret[dprops.DISPLAY_NAME] = self.name
+		if dprops.ETAG in pset:
+			etag = None
+			if self.etag:
+				etag = '"%s"' % (self.etag,)
+			ret[dprops.ETAG] = etag
+		if dprops.EXECUTABLE in pset:
+			ret[dprops.EXECUTABLE] = 'F'
+		if dprops.LAST_MODIFIED in pset:
+			ret[dprops.LAST_MODIFIED] = self.modification_time
+		if dprops.ADDRESS_DATA in pset:
+			ret[dprops.ADDRESS_DATA] = DAVBinaryValue(self.data)
+		if isinstance(pset, DAVAllPropsSet):
+			ret.update(self.get_props())
+		else:
+			custom = pset.difference(dprops.RO_PROPS)
+			for cprop in custom:
+				try:
+					ret[cprop] = self.get_prop(cprop)
+				except KeyError:
+					pass
+		return ret
+
+	def dav_props_set(self, pdict):
+		pset = set(pdict)
+		custom = pset.difference(dprops.RO_PROPS)
+		for cprop in custom:
+			if pdict[cprop] is None:
+				self.del_prop(cprop)
+			else:
+				self.set_prop(cprop, pdict[cprop])
+		return True
+
+	def get_prop(self, name):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.get_prop(name)
+
+	def get_props(self):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.get_props()
+
+	def set_prop(self, name, value):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.set_prop(name, value)
+
+	def del_prop(self, name):
+		if not self.meta:
+			self.meta = FileMeta()
+		return self.meta.del_prop(name)
+
+	def dav_get(self, req):
+		return self.get_response(req)
+
+	def dav_put(self, req, data, start=None, length=None):
+		mod = False
+		if isinstance(start, int) and isinstance(length, int):
+			newdata = bytearray(self.data)
+			mv = memoryview(newdata)
+			try:
+				mv[start:start + length] = data.read(length)
+			except AttributeError:
+				mv[start:start + length] = data
+		else:
+			try:
+				newdata = bytearray(data.read())
+			except AttributeError:
+				newdata = bytearray(data)
+		mod = req.dav.verify_vcard(newdata)
+		self.data = newdata
+		return mod
+
+	def dav_clone(self, req):
+		# TODO: clone meta
+		obj = AddressBookCard(
+			name=self.name,
+			size=self.size,
+			etag=self.etag,
+			data=self.data
+		)
+		return obj
+
+	def get_response(self, req):
+		return vCardResponse(self, req)
+
+	@property
+	def needs_dav_history(self):
+		attrs = inspect(self).attrs
+		attrnames = (
+			'address_book',
+			'name',
+			'size',
+			'etag',
+			'data'
+		)
+		for aname in attrnames:
+			if getattr(attrs, aname).history.has_changes():
+				return True
+		return False
+
+	def get_dav_history(self, sess, token_value):
+		ab = self.address_book
+		if ab is None:
+			return ()
+		coll_id = ab.dav_collection_id
+		if self in sess.deleted:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=self.name
+			),)
+		if self in sess.new:
+			return (DAVHistory(
+				collection_id=coll_id,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=self.name
+			),)
+		attrs = inspect(self).attrs
+		name_hist = attrs.name.history
+		parent_hist = attrs.address_book.history
+		if parent_hist.has_changes() or name_hist.has_changes():
+			old_parent = parent_hist.non_added()[0].dav_collection_id
+			new_parent = parent_hist.non_deleted()[0].dav_collection_id
+			old_name = name_hist.non_added()[0]
+			new_name = name_hist.non_deleted()[0]
+
+			return (DAVHistory(
+				collection_id=old_parent,
+				change_id=token_value,
+				operation=DAVHistoryOp.delete,
+				uri=old_name
+			), DAVHistory(
+				collection_id=new_parent,
+				change_id=token_value,
+				operation=DAVHistoryOp.add,
+				uri=new_name
+			))
+		return (DAVHistory(
+			collection_id=coll_id,
+			change_id=token_value,
+			operation=DAVHistoryOp.modify,
+			uri=self.name
+		),)
+
+	def __str__(self):
+		return '%s' % str(self.name)
+
+@event.listens_for(AddressBookCard.address_book_id, 'set', active_history=True)
+def _on_set_card_address_book_id(tgt, value, oldvalue, initiator):
+	if value is None:
+		tgt.address_book = None
+	else:
+		tgt.address_book = DBSession().query(AddressBook).get(value)
+	return value
+
 HWAddrHexIEEEFunction = SQLFunction(
 	'hwaddr_hex_i',
 	args=(SQLFunctionArgument('hwbin', BINARY(6)),),
@@ -7127,4 +8818,31 @@ HWAddrUnhexFunction = SQLFunction(
 	reads_sql=False,
 	writes_sql=False
 )
+
+@event.listens_for(DBSession, 'before_flush')
+def _core_before_flush(sess, flush_ctx, instances):
+	add_history = set()
+	update_synctoken = set()
+	for obj in sess:
+		if not isinstance(obj, (File, FileFolder, AddressBook, AddressBookCard, User)):
+			continue
+		if (obj in sess.new) or (obj in sess.deleted) or (obj.needs_dav_history):
+			add_history.add(obj)
+			if isinstance(obj, File):
+				if obj.folder:
+					update_synctoken.add(obj.folder)
+			elif isinstance(obj, AddressBookCard):
+				if obj.address_book:
+					update_synctoken.add(obj.address_book)
+			else:
+				update_synctoken.add(obj)
+
+	if (len(update_synctoken) > 0) or (len(add_history) > 0):
+		token = NPVariable.get_rw('DAV:SYNC:ROOT')
+		token.integer_value += 1
+		for obj in add_history:
+			for dh in obj.get_dav_history(sess, token.integer_value):
+				sess.add(dh)
+		for folder in update_synctoken:
+			folder.sync_token = token.integer_value
 
