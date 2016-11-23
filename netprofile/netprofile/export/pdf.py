@@ -70,8 +70,8 @@ class PDFExportFormat(ExportFormat):
 		return 'ico-pdf'
 
 	def enabled(self, req):
-		if req.pdf_styles is None:
-			return False
+		#if req.pdf_styles is None:
+		#return False
 		return True
 
 	def options(self, req, name):
