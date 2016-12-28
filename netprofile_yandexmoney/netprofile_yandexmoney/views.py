@@ -82,17 +82,11 @@ def calc_md5_hash(postdata, shop_pass):
 @view_config(route_name='yandexmoney.cl.neworder', renderer='string')
 def ym_new_order(request):
 	sess = DBSession()
-	xop = ExternalOperation()
-	xop.stashid = request.POST.get('stashId', '')
-	xop.entity = request.user.parent
-	# TODO: add provider ID to conffile
-	xop.provider_id = sess.query(ExternalOperationProvider).filter(ExternalOperationProvider.name=='yandexmoney').first().id
-	xop.difference = request.POST.get('sum', '')
-	#xop.external_id = request.POST.get('operation_id', '')
-	#sess.add(xop)
-	#sess.flush()
-	#resp = xop.id
-	return 123321#resp
+	providerid = sess.query(ExternalOperationProvider).filter(ExternalOperationProvider.uri=='yandexmoney').first().id
+	xop = ExternalOperation(stash_id=request.POST.get('stash', ''), entity=request.user.parent, provider_id=providerid, difference = request.POST.get('diff', ''))
+	sess.add(xop)
+	sess.flush()
+	return xop.id
 
 @view_config(route_name='yandexmoney.cl.checkorder', renderer='netprofile_yandexmoney:templates/ym_checkorder.mak')
 def ym_check_order(request):

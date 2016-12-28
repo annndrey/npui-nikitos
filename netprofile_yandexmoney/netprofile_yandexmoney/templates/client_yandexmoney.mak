@@ -27,10 +27,11 @@ $( "#ymform" ).submit(function( event ) {
    sum = $form.find( "input[name='sum']" ).val(),
    stashid = $form.find( "input[name='customerNumber']" ).val(),
    url = $form.attr( "action" );
-   var posting = $.post( "${req.route_url("yandexmoney.cl.neworder")}", { shopid: shopid, diff: sum } );
+   var posting = $.post( "${req.route_url("yandexmoney.cl.neworder")}", { shopid: shopid, diff: sum, stash:stashid } );
    posting.done(function( data ) {
      var content = $( data );
      $( "#xopid" ).val(data);
    });
- });
+   $("#ymform").unbind('submit').submit();
+  });
 </script>
