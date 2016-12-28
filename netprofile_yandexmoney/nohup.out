@@ -1,0 +1,94 @@
+[5007] 09 Dec 17:06:30.519 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+[5007] 09 Dec 17:06:30.523 # Unable to set the max number of files limit to 10032 (Operation not permitted), setting the max clients configuration to 3984.
+[5007] 09 Dec 17:06:30.524 # Warning: 32 bit instance detected but no memory limit set. Setting 3 GB maxmemory limit with 'noeviction' policy now.
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 2.6.13 (00000000/0) 32 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                   
+ (    '      ,       .-`  | `,    )     Running in stand alone mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+ |    `-._   `._    /     _.-'    |     PID: 5007
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           http://redis.io        
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+[5007] 09 Dec 17:06:30.527 # Server started, Redis version 2.6.13
+[5007] 09 Dec 17:06:30.527 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+[5007] 09 Dec 17:06:30.527 * The server is now ready to accept connections on port 6379
+[5007] 09 Dec 17:14:38.662 * 100 changes in 300 seconds. Saving...
+[5007] 09 Dec 17:14:38.663 * Background saving started by pid 5058
+[5058] 09 Dec 17:14:38.694 * DB saved on disk
+[5058] 09 Dec 17:14:38.696 * RDB: 0 MB of memory used by copy-on-write
+[5007] 09 Dec 17:14:38.764 * Background saving terminated with success
+[3795] 15 Dec 14:27:32.781 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+[3795] 15 Dec 14:27:32.790 # Unable to set the max number of files limit to 10032 (Operation not permitted), setting the max clients configuration to 3984.
+[3795] 15 Dec 14:27:32.791 # Warning: 32 bit instance detected but no memory limit set. Setting 3 GB maxmemory limit with 'noeviction' policy now.
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 2.6.13 (00000000/0) 32 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                   
+ (    '      ,       .-`  | `,    )     Running in stand alone mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+ |    `-._   `._    /     _.-'    |     PID: 3795
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           http://redis.io        
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+[3795] 15 Dec 14:27:32.798 # Server started, Redis version 2.6.13
+[3795] 15 Dec 14:27:32.798 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+[3795] 15 Dec 14:27:32.799 * DB loaded from disk: 0.001 seconds
+[3795] 15 Dec 14:27:32.799 * The server is now ready to accept connections on port 6379
+[3795] 15 Dec 14:48:33.765 * 100 changes in 300 seconds. Saving...
+[3795] 15 Dec 14:48:33.766 * Background saving started by pid 3921
+[3921] 15 Dec 14:48:33.788 * DB saved on disk
+[3921] 15 Dec 14:48:33.789 * RDB: 0 MB of memory used by copy-on-write
+[3795] 15 Dec 14:48:33.866 * Background saving terminated with success
+[3795] 15 Dec 15:48:34.042 * 1 changes in 3600 seconds. Saving...
+[3795] 15 Dec 15:48:34.043 * Background saving started by pid 4076
+[4076] 15 Dec 15:48:34.054 * DB saved on disk
+[4076] 15 Dec 15:48:34.055 * RDB: 0 MB of memory used by copy-on-write
+[3795] 15 Dec 15:48:34.144 * Background saving terminated with success
+[3795] 15 Dec 16:12:49.303 * 100 changes in 300 seconds. Saving...
+[3795] 15 Dec 16:12:49.304 * Background saving started by pid 4329
+[4329] 15 Dec 16:12:49.327 * DB saved on disk
+[4329] 15 Dec 16:12:49.328 * RDB: 0 MB of memory used by copy-on-write
+[3795] 15 Dec 16:12:49.413 * Background saving terminated with success
+[3795] 15 Dec 17:12:50.053 * 1 changes in 3600 seconds. Saving...
+[3795] 15 Dec 17:12:50.054 * Background saving started by pid 4365
+[4365] 15 Dec 17:12:50.074 * DB saved on disk
+[4365] 15 Dec 17:12:50.076 * RDB: 0 MB of memory used by copy-on-write
+[3795] 15 Dec 17:12:50.156 * Background saving terminated with success
+[3795] 19 Dec 15:10:24.928 * 1 changes in 3600 seconds. Saving...
+[3795] 19 Dec 15:10:24.929 * Background saving started by pid 8041
+[8041] 19 Dec 15:10:25.007 * DB saved on disk
+[8041] 19 Dec 15:10:25.008 * RDB: 0 MB of memory used by copy-on-write
+[3795] 19 Dec 15:10:25.029 * Background saving terminated with success
+[3795] 19 Dec 16:10:26.047 * 1 changes in 3600 seconds. Saving...
+[3795] 19 Dec 16:10:26.049 * Background saving started by pid 8155
+[8155] 19 Dec 16:10:26.083 * DB saved on disk
+[8155] 19 Dec 16:10:26.084 * RDB: 0 MB of memory used by copy-on-write
+[3795] 19 Dec 16:10:26.149 * Background saving terminated with success
+[3795] 19 Dec 17:35:52.680 * 1 changes in 3600 seconds. Saving...
+[3795] 19 Dec 17:35:52.682 * Background saving started by pid 8377
+[8377] 19 Dec 17:35:52.723 * DB saved on disk
+[8377] 19 Dec 17:35:52.725 * RDB: 0 MB of memory used by copy-on-write
+[3795] 19 Dec 17:35:52.791 * Background saving terminated with success
+[3795 | signal handler] (1482157910) Received SIGTERM, scheduling shutdown...
+[3795] 19 Dec 18:31:50.621 # User requested shutdown...
+[3795] 19 Dec 18:31:50.621 * Saving the final RDB snapshot before exiting.
+[3795] 19 Dec 18:31:50.655 * DB saved on disk
+[3795] 19 Dec 18:31:50.655 # Redis is now ready to exit, bye bye...
