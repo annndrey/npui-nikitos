@@ -32,7 +32,7 @@ from netprofile.common.modules import ModuleBase
 
 from pyramid.i18n import TranslationStringFactory
 
-_ = TranslationStringFactory('netprofile_proxmox')
+_ = TranslationStringFactory('netprofile_powerdns')
 
 class Module(ModuleBase):
 	def __init__(self, mmgr):
