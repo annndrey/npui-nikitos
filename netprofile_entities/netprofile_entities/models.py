@@ -1385,11 +1385,13 @@ class PhysicalEntity(Entity):
 								 column_flex=4,
 								 template=TemplateObject('netprofile_entities:templates/entity_phone.mak')
 								 ),
-					#'addr', 'phones' >>>>>>
 				),
 				'grid_hidden'   : ('entityid',),
 				'form_view'     : (
-					'nick', 'parent', 'state', 'flags', 'contractid',
+					'nick', 
+					'addresses', 'phones',
+					'parent', 'state', 
+					'flags', 'contractid',
 					'stashes',
 					'name_family', 'name_given', 'name_middle',
 					'gender', 
