@@ -1390,8 +1390,9 @@ class PhysicalEntity(Entity):
 				'grid_hidden'   : ('entityid',),
 				'form_view'     : (
 					'nick', 'parent', 'state', 'flags', 'contractid',
+					'stashes',
 					'name_family', 'name_given', 'name_middle',
-					'gender',
+					'gender', 
 					'email', 'icq', 'homepage', 'birthdate',
 					'pass_series', 'pass_num', 'pass_issuedate', 'pass_issuedby',
 					'descr'
