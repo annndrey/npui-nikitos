@@ -70,7 +70,8 @@ from sqlalchemy.orm import (
 	contains_eager,
 	joinedload,
 	relationship,
-	validates
+	validates,
+	column_property
 )
 
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -1368,7 +1369,23 @@ class PhysicalEntity(Entity):
 						template='<img class="np-block-img" src="{grid_icon}" />'
 					),
 					'entityid',
-					'nick', 'name_family', 'name_given'
+					'nick', 
+					HybridColumn('fullname',
+								 header_string=_('Full Name'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_fullname.mak')
+								 ),
+					HybridColumn('addrs',
+								 header_string=_('Address'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_address.mak')
+								 ),
+					HybridColumn('phns',
+								 header_string=_('Phone'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_phone.mak')
+								 ),
+					#'addr', 'phones' >>>>>>
 				),
 				'grid_hidden'   : ('entityid',),
 				'form_view'     : (
@@ -1561,19 +1578,24 @@ class PhysicalEntity(Entity):
 			'header_string' : _('Pass. Issue Date')
 		}
 	)
+	#@property
+	#def data(self):
+	#	return {
+	#		'flags' : [(ft.id, ft.name) for ft in self.flags]
+	#	}
 
-	def data(self, req):
-		loc = get_localizer(req)
+	#def data(self, req):
+	#	loc = get_localizer(req)
 
-		ret = super(PhysicalEntity, self).data
+	#	ret = super(PhysicalEntity, self).data
 
-		ret['addrs'] = []
-		ret['phones'] = []
-		for obj in self.addresses:
-			ret['addrs'].append(str(obj))
-		for obj in self.phones:
-			ret['phones'].append(obj.data)
-		return ret
+	#	ret['addrs'] = []
+	#	ret['phones'] = []
+	#	for obj in self.addresses:
+	#		ret['addrs'].append(str(obj))
+	#	for obj in self.phones:
+	#		ret['phones'].append(obj.data)
+	#	return ret
 
 	def template_vars(self, req):
 		ret = super(PhysicalEntity, self).template_vars(req)
@@ -1587,11 +1609,34 @@ class PhysicalEntity(Entity):
 			'homepage'           : self.homepage,
 			'passport_series'    : self.passport_series,
 			'passport_number'    : self.passport_number,
-			'passport_issued_by' : self.passport_issued_by
+			'passport_issued_by' : self.passport_issued_by,
 		})
 		# TODO: add birthdate, pass_issuedate
 		return ret
 
+	@property
+	def addrs(self):
+		addr = []
+		for a in self.addresses:
+			addr.append(str(a))
+		return "; ".join(addr)
+
+	@property
+	def phns(self):
+		phn = []
+		for p in self.phones:
+			phn.append(str(p))
+		return "; ".join(phn)
+
+
+	@property
+	def fullname(self):
+		fname = []
+		for n in [self.name_family, self.name_middle, self.name_given]:
+			if n is not None:
+				fname.append(n)
+		return " ".join(fname)
+			
 	def grid_icon(self, req):
 		return req.static_url('netprofile_entities:static/img/physical.png')
 
