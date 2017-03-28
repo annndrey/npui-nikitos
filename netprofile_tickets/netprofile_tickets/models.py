@@ -47,6 +47,7 @@ __all__ = [
 ]
 
 import importlib
+import json
 import datetime as dt
 from dateutil.parser import parse as dparse
 
@@ -96,6 +97,7 @@ from netprofile.db.util import (
 	populate_related_list
 )
 from netprofile.ext.data import ExtModel
+from netprofile.tpl import TemplateObject
 from netprofile.ext.columns import (
 	HybridColumn,
 	MarkupColumn
@@ -725,7 +727,8 @@ def _wizfld_ticket_state(fld, model, req, **kwargs):
 	sess = DBSession()
 	loc = get_localizer(req)
 	data = []
-	for ts in sess.query(TicketState).filter(TicketState.is_start == True).order_by('title', 'subtitle'):
+	#for ts in sess.query(TicketState).filter(TicketState.is_start == True).order_by('title', 'subtitle'):
+	for ts in sess.query(TicketState).order_by('title', 'subtitle'):
 		data.append({
 			'id'    : ts.id,
 			'value' : str(ts)
@@ -851,7 +854,14 @@ class Ticket(Base):
 				'menu_main'     : True,
 				'default_sort'  : ({ 'property': 'ctime' ,'direction': 'DESC' },),
 				'grid_view'     : (
-					'ticketid', 'entity', 'state',
+					'ticketid', 'entity', 
+					HybridColumn(
+						'tstate',
+						header_string=_('State'),
+						column_flex=4,
+						column_name=_('State'),
+						template=TemplateObject('netprofile_tickets:templates/ticket_template.mak'),
+					),
 					'assigned_time', 'assigned_group', 'name'
 				),
 				'grid_hidden'   : ('ticketid',),
@@ -868,6 +878,7 @@ class Ticket(Base):
 					Step(
 						'entity', 'name',
 						ExtJSWizardField(_wizfld_ticket_state),
+						#'state',
 						'show_client',
 						'flags', 'descr',
 						id='generic'
@@ -1219,6 +1230,11 @@ class Ticket(Base):
 
 	def __str__(self):
 		return '%s' % self.name
+
+	@property
+	def tstate(self):
+		tstr = """%s.png" /> <font color=%s>%s</font>"""
+		return tstr % (self.state.image, self.state.style, self.state)
 
 	@classmethod
 	def __augment_query__(cls, sess, query, params, req):
