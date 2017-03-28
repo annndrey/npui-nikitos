@@ -166,7 +166,7 @@ class Stash(Base):
 				'default_sort'  : ({ 'property': 'name', 'direction': 'ASC' },),
 				'grid_view'     : ('stashid', 'entity', 'name', 'amount', 'credit'),
 				'grid_hidden'   : ('stashid',),
-				'form_view'     : ('entity', 'name', 'amount', 'credit', 'alltime_min', 'alltime_max'),
+				'form_view'     : ('entity', 'name', 'amount', 'credit', 'operations','alltime_min', 'alltime_max'),
 				'easy_search'   : ('name',),
 				'detail_pane'   : ('netprofile_core.views', 'dpane_simple'),
 				'create_wizard' : SimpleWizard(title=_('Add new stash'))
