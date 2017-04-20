@@ -1631,7 +1631,6 @@ class PhysicalEntity(Entity):
 			phn.append(str(p))
 		return "; ".join(phn)
 
-
 	@property
 	def fullname(self):
 		fname = []
@@ -1652,6 +1651,7 @@ class PhysicalEntity(Entity):
 		if self.name_middle:
 			strs.append(self.name_middle)
 		return ' '.join(strs)
+
 
 class LegalEntity(Entity):
 	"""
@@ -1689,7 +1689,25 @@ class LegalEntity(Entity):
 						template='<img class="np-block-img" src="{grid_icon}" />'
 					),
 					'entityid',
-					'nick', 'name', 'cp_name_family', 'cp_name_given'
+					'nick', 
+										HybridColumn('fullname',
+								 header_string=_('Full Name'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_fullname.mak')
+								 ),
+					HybridColumn('addrs',
+								 header_string=_('Address'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_address.mak')
+								 ),
+					HybridColumn('phns',
+								 header_string=_('Phone'),
+								 column_flex=4,
+								 template=TemplateObject('netprofile_entities:templates/entity_phone.mak')
+								 ),
+				),
+
+					#'name', 'cp_name_family', 'cp_name_given'
 				),
 				'grid_hidden'   : ('entityid',),
 				'form_view'     : (
@@ -1936,6 +1954,31 @@ class LegalEntity(Entity):
 		for obj in self.phones:
 			ret['phones'].append(obj.data)
 		return ret
+
+	@property
+	def addrs(self):
+		addr = []
+		for a in self.addresses:
+			addr.append(str(a))
+		if len(addr)> 0:
+			return "; ".join(addr)
+		else:
+			return self.address_legal
+
+	@property
+	def phns(self):
+		phn = []
+		for p in self.phones:
+			phn.append(str(p))
+		return "; ".join(phn)
+
+	@property
+	def fullname(self):
+		fname = []
+		for n in [self.contract_name_family, self.contract_name_middle, self.contract_name_given]:
+			if n is not None:
+				fname.append(n)
+		return " ".join(fname)
 
 	def grid_icon(self, req):
 		return req.static_url('netprofile_entities:static/img/legal.png')
