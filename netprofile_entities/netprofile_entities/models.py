@@ -1705,8 +1705,6 @@ class LegalEntity(Entity):
 								 column_flex=4,
 								 template=TemplateObject('netprofile_entities:templates/entity_phone.mak')
 								 ),
-				),
-
 					#'name', 'cp_name_family', 'cp_name_given'
 				),
 				'grid_hidden'   : ('entityid',),
