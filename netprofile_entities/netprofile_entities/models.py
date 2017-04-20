@@ -1710,6 +1710,7 @@ class LegalEntity(Entity):
 				'grid_hidden'   : ('entityid',),
 				'form_view'     : (
 					'nick', 'parent', 'state', 'flags', 'contractid',
+					'stashes',
 					'name',
 					'cp_name_family', 'cp_name_given', 'cp_name_middle', 'cp_title',
 					'cp_email', 'cp_icq', 'homepage', 'address_legal',
@@ -1973,7 +1974,7 @@ class LegalEntity(Entity):
 	@property
 	def fullname(self):
 		fname = []
-		for n in [self.contract_name_family, self.contract_name_middle, self.contract_name_given]:
+		for n in [self.contact_name_family, self.contact_name_middle, self.contact_name_given]:
 			if n is not None:
 				fname.append(n)
 		return " ".join(fname)
